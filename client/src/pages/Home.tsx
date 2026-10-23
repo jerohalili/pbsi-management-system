@@ -10,10 +10,10 @@ export default function Home() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen w-full bg-site-bg flex items-center justify-center px-4">
+      <div className="min-h-screen w-full bg-gradient-to-r from-primary to-primary-light flex items-center justify-center px-4">
         <div className="flex flex-col items-center gap-2 animate-pulse">
-          <div className="w-10 h-10 rounded-full bg-site-border"></div>
-          <p className="text-site-muted text-sm">Loading…</p>
+          <div className="w-12 h-12 rounded-full bg-white/20"></div>
+          <p className="text-white text-sm font-medium">Loading…</p>
         </div>
       </div>
     );
@@ -22,49 +22,53 @@ export default function Home() {
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen w-full bg-gradient-to-r from-primary to-primary-light px-4 py-12">
-        <div className="max-w-[1596px] mx-auto text-center mb-20">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white/20 text-white mb-6">
-            <GraduationCap className="w-8 h-8" />
+        <div className="max-w-[1596px] mx-auto">
+          {/* Header / Hero */}
+          <div className="pt-48 pb-40 text-center">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white/20 text-white mb-6">
+              <GraduationCap className="w-8 h-8" />
+            </div>
+            <h1 className="text-6xl md:text-8xl lg:text-9xl font-extrabold text-white leading-[0.95] mb-8 tracking-tighter">
+              PBSI School Management
+            </h1>
+            <p className="text-xl md:text-2xl text-white/90 max-w-2xl mx-auto leading-relaxed font-medium mb-12">
+              The modern school management system for students, teachers, and administrators.
+            </p>
+            <div className="flex flex-col sm:flex-row justify-center items-center gap-4">
+              <Button
+                onClick={() => navigate('/login')}
+                className="w-full sm:w-auto bg-white text-primary px-14 py-6 rounded-2xl font-bold text-xl hover:bg-blue-700 hover:shadow-2xl hover:shadow-primary/40 active:scale-95 transition-all duration-300"
+              >
+                Sign in
+              </Button>
+              <button
+                onClick={() => navigate('/register')}
+                className="w-full sm:w-auto bg-site-card/60 backdrop-blur-sm text-site-text border-2 border-site-border rounded-2xl px-10 py-4 font-bold text-xl hover:bg-site-card hover:border-primary/20 hover:shadow-xl hover:shadow-primary/10 transition-all duration-300 active:scale-95"
+              >
+                Create account
+              </button>
+            </div>
           </div>
-          <h1 className="text-6xl md:text-8xl lg:text-9xl font-extrabold text-white leading-[0.95] mb-10 tracking-tighter">
-            PBSI School Management
-          </h1>
-          <p className="text-white/80 max-w-2xl mx-auto text-xl md:text-2xl leading-relaxed mb-16 font-medium">
-            The modern school management system for students, teachers, and administrators.
-          </p>
-          <div className="flex flex-col sm:flex-row justify-center items-center gap-4">
-            <Button
-              onClick={() => navigate('/login')}
-              className="w-full sm:w-auto bg-white text-primary px-10 py-4 rounded-2xl font-bold text-xl hover:bg-blue-700 hover:bg-blue-700 transition-all duration-300 active:scale-95"
-            >
-              Sign in
-            </Button>
-            <button
-              onClick={() => navigate('/register')}
-              className="w-full sm:w-auto bg-site-card/60 backdrop-blur-sm text-site-text border-2 border-site-border rounded-2xl px-10 py-4 font-bold text-xl hover:bg-site-card hover:border-primary/20 hover:shadow-xl hover:shadow-primary/10 transition-all duration-300 active:scale-95"
-            >
-              Create account
-            </button>
-          </div>
-        </div>
 
-        <div className="max-w-[1596px] mx-auto px-4 md:px-10">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-            <FeatureCard
-              icon={<Users className="w-6 h-6 text-primary" />}
-              title="Student Records"
-              desc="Manage student profiles, enrollment history, subjects, and cumulative GPA tracking."
-            />
-            <FeatureCard
-              icon={<BookOpen className="w-6 h-6 text-primary" />}
-              title="Courses & Modules"
-              desc="Create courses with rich content, modules, video links, and downloadable attachments."
-            />
-            <FeatureCard
-              icon={<Award className="w-6 h-6 text-primary" />}
-              title="Grades & GPA"
-              desc="Track assignments, quizzes, term grades, and cumulative GPA analytics."
-            />
+          {/* Feature grid */}
+          <div className="max-w-[1596px] mx-auto px-4 md:px-10 pb-40">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              <FeatureCard
+                icon={<Users className="w-6 h-6 text-primary" />}
+                title="Student Records"
+                desc="Manage student profiles, enrollment history, subjects, and cumulative GPA tracking."
+              />
+              <FeatureCard
+                icon={<BookOpen className="w-6 h-6 text-primary" />}
+                title="Courses & Modules"
+                desc="Create courses with rich content, modules, video links, and downloadable attachments."
+              />
+              <FeatureCard
+                icon={<Award className="w-6 h-6 text-primary" />}
+                title="Grades & GPA"
+                desc="Track assignments, quizzes, term grades, and cumulative GPA analytics."
+              />
+            </div>
           </div>
         </div>
       </div>

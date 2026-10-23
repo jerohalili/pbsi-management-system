@@ -1,9 +1,9 @@
-# PBSI Website — Design System & Style Guide
+# PBSI Website — Complete Design System & Style Guide
 
 **Target:** Presbyterian Bible Seminary Inc. (PBSI) website  
 **Repository:** `pbsi1992.github.io`  
 **Live URL:** https://pbsi1992.github.io  
-**Purpose:** Extremely comprehensive design document for AI agents editing or extending this codebase. Every color, font, spacing unit, radius, shadow, card variant, icon usage, gradient, and interaction pattern is cataloged below.
+**Purpose:** Exhaustive design-system reference for AI agents editing or extending this codebase. Every color, gradient, font, spacing unit, radius, shadow, card variant, icon usage, layout pattern, interaction, and dark-mode rule is cataloged with exact class strings and code snippets.
 
 ---
 
@@ -21,31 +21,39 @@
 | Forms | Web3Forms API | `https://api.web3forms.com/submit` |
 
 **Config files:**
-- `tailwind.config.mjs` — custom color extensions only (no font/radius/spacing overrides; relies on Tailwind v4 defaults + CSS variables).
-- `src/styles/global.css` — CSS custom properties (light/dark theme tokens), base `body` styles, `@import "tailwindcss"`.
+- `tailwind.config.mjs` — custom raw color extensions only (`sb-orange`, `sb-bg`, `sb-border`, `sb-text`, `sb-muted`). No font, radius, or spacing overrides; relies on Tailwind v4 defaults + CSS variables.
+- `src/styles/global.css` — CSS custom properties (light/dark theme tokens), `@theme` semantic color mappings, base `body` styles, `@import "tailwindcss"`.
 - `astro.config.mjs` — Tailwind + React integrations, site root config.
 
 ---
 
 ## 2. Color System
 
-### 2.1 Custom Tailwind Color Extensions (`tailwind.config.mjs`)
+### 2.1 Raw Tailwind Color Extensions (`tailwind.config.mjs`)
 
 ```js
-colors: {
-  'sb-orange': '#FF9500',   // declared but not actively used in components
-  'sb-bg': '#F7F7F8',       // light page background
-  'sb-border': '#F1F1F3',   // light borders
-  'sb-text': '#1A1A1A',     // light text
-  'sb-muted': '#59595A',    // light muted text
+export default {
+  content: ['./src/**/*.{astro,html,js,jsx,md,mdx,svelte,ts,tsx,vue}'],
+  theme: {
+    extend: {
+      colors: {
+        'sb-orange': '#FF9500',   // declared; not actively used in components
+        'sb-bg': '#F7F7F8',       // light page background
+        'sb-border': '#F1F1F3',   // light borders / dividers
+        'sb-text': '#1A1A1A',     // light primary text
+        'sb-muted': '#59595A',    // light muted text
+      },
+    },
+  },
+  plugins: [],
 }
 ```
 
-> Note: These `sb-*` tokens exist in `tailwind.config.mjs` but the components predominantly use the CSS-variable-based `site-*` Tailwind colors defined in `global.css` (see below).
+> These `sb-*` tokens exist in `tailwind.config.mjs` but components predominantly use the CSS-variable-based `site-*` semantic colors defined in `global.css`.
 
 ### 2.2 CSS Custom Properties (Theme Tokens) — `src/styles/global.css`
 
-**Light mode (`:root`) — the default**
+**Light mode (`:root`) — the default theme**
 
 | Variable | Value | Role |
 |----------|-------|------|
@@ -60,97 +68,146 @@ colors: {
 
 | Variable | Value | Role |
 |----------|-------|------|
-| `--brand-primary` | `#3B82F6` | Primary brand blue (lighter for dark legibility) |
+| `--brand-primary` | `#3B82F6` | Primary brand blue (lighter for dark-mode legibility) |
 | `--bg-color` | `#0F172A` | Page background (slate-900) |
 | `--text-color` | `#F8FAFC` | Primary text (slate-50) |
 | `--card-bg` | `#1E293B` | Card surface (slate-800) |
 | `--border-color` | `#334155` | Borders (slate-700) |
 | `--muted-text` | `#94A3B8` | Muted text (slate-400) |
 
-### 2.3 Tailwind Semantic Color Classes (derived from CSS vars)
+### 2.3 Tailwind Semantic Color Classes (derived via `@theme`)
 
-Defined via `@theme` in `global.css` and used throughout all components:
+Defined in `global.css` and used throughout all components:
 
-| Tailwind class | CSS variable | Light value | Dark value |
-|----------------|--------------|-------------|------------|
-| `text-primary` / `bg-primary` / `border-primary` | `--color-primary` = `var(--brand-primary)` | `#0033A0` | `#3B82F6` |
-| `text-primary-light` / `bg-primary-light` | `--color-primary-light` | `#407BFF` | (same) |
-| `bg-site-bg` / `text-site-bg` | `--color-site-bg` = `var(--bg-color)` | `#F7F7F8` | `#0F172A` |
-| `text-site-text` | `--color-site-text` = `var(--text-color)` | `#1A1A1A` | `#F8FAFC` |
-| `bg-site-card` / `border-site-card` | `--color-site-card` = `var(--card-bg)` | `#FFFFFF` | `#1E293B` |
-| `border-site-border` | `--color-site-border` = `var(--border-color)` | `#F1F1F3` | `#334155` |
-| `text-site-muted` | `--color-site-muted` = `var(--muted-text)` | `#59595A` | `#94A3B8` |
+| Tailwind class | CSS variable | Light value | Dark value | Usage guidance |
+|----------------|--------------|-------------|------------|----------------|
+| `text-primary` | `--color-primary` = `var(--brand-primary)` | `#0033A0` | `#3B82F6` | Brand accents, headings, buttons, active states |
+| `bg-primary` | same | `#0033A0` | `#3B82F6` | Primary buttons, active pill states |
+| `border-primary` | same | `#0033A0` | `#3B82F6` | Focus rings, accent borders |
+| `text-primary-light` | `--color-primary-light` | `#407BFF` | `#407BFF` | Gradient end stop (text-transparent) |
+| `bg-primary-light` | same | `#407BFF` | `#407BFF` | Decorative corner blobs (pricing scholarship card) |
+| `bg-site-bg` | `--color-site-bg` = `var(--bg-color)` | `#F7F7F8` | `#0F172A` | Page background, section backgrounds, glass scrims |
+| `text-site-text` | `--color-site-text` = `var(--text-color)` | `#1A1A1A` | `#F8FAFC` | Primary body text, headings |
+| `bg-site-card` | `--color-site-card` = `var(--card-bg)` | `#FFFFFF` | `#1E293B` | Card surfaces, modal backgrounds |
+| `border-site-border` | `--color-site-border` = `var(--border-color)` | `#F1F1F3` | `#334155` | Card borders, input borders, dividers |
+| `text-site-muted` | `--color-site-muted` = `var(--muted-text)` | `#59595A` | `#94A3B8` | Secondary text, captions, meta data |
 
-### 2.4 Hardcoded Hex / Inline Colors (appear in components)
+### 2.4 Opacity Tints (used as modifier suffixes)
 
-| Color | Usage |
-|-------|-------|
-| `#0033A0` | `Banner` background (enrollment banner); root `--brand-primary` |
-| `#FF9500` | `sb-orange` (declared, unused in components) |
-| `bg-primary/5`, `bg-primary/10`, `bg-primary/20`, `bg-primary/30`, `bg-primary/40`, `bg-primary/50` | Opacity tints for badges, icon containers, decorative blobs, hover states |
-| `text-primary/60`, `text-primary/30`, `text-primary/10` | Opacity text tints |
-| `shadow-primary/40`, `shadow-primary/20`, `shadow-primary/10`, `shadow-primary/5` | Colored glow shadows on hover |
-| `border-primary/10`, `border-primary/20`, `border-primary/30`, `border-primary/40` | Opacity border tints |
-| `text-white` / `bg-white/10` | Dark-mode-specific accents (pricing scholarship card, contact panel) |
-| `bg-site-bg/40`, `bg-site-bg/50`, `bg-site-bg/60`, `bg-site-bg/90`, `bg-site-bg/30`, `bg-site-bg/10` | Glassmorphism / scrim opacity backgrounds |
-| `text-site-text/90` | Slightly muted body text |
+These are applied directly to semantic classes (e.g., `bg-primary/10`, `text-primary/60`, `border-site-border/60`):
 
-### 2.5 Theme / Dark-Mode Mechanics
+| Opacity | Typical usage |
+|---------|---------------|
+| `/5` | Very subtle decorative glows, shadow tints |
+| `/10` | Badge backgrounds, icon box backgrounds, card hover borders |
+| `/20` | Secondary hover borders, divider tints |
+| `/30` | Accent badges, selection backgrounds |
+| `/40` | Glass scrims, hover borders on panels |
+| `/50` | Table row backgrounds, glass cards |
+| `/60` | Hero kicker backgrounds, form input backgrounds |
+| `/90` | Modal backdrop scrims |
 
-- Default theme: **light** (hardcoded fallback in `Layout.astro`).
-- Preference stored in `localStorage` under key `"theme"` (`"light"` \| `"dark"`).
-- `Layout.astro` inline script runs on load: reads localStorage, adds/removes `dark` class on `<html>`, syncs back to localStorage.
-- `ThemeToggle.astro` (lucide `Moon` / `Sun`) toggles the `dark` class and persists choice; re-initializes on `astro:after-swap`.
-- All colors flow through CSS variables, so dark mode is a wholesale token swap — no hardcoded dark-mode hex overrides in components (except `text-white`/`bg-white/10` used intentionally for dark-mode hero cards).
+### 2.5 Hardcoded Hex / Inline Colors (appear in components)
+
+| Color | File(s) | Usage |
+|-------|---------|-------|
+| `#0033A0` | `Banner.astro` | Enrollment announcement banner background |
+| `#FF9500` | `tailwind.config.mjs` | Declared `sb-orange`; **unused** in components |
+| `#ffffff` | `admission.astro` (`<style>`) | `<option>` background color |
+| `#0f172a` | `admission.astro` (`<style>`) | `<option>` text color |
 
 ---
 
-## 3. Typography
+## 3. Gradient System (Comprehensive)
 
-### 3.1 Font Families
+### 3.1 Primary → Primary-Light Gradient (Brand Gradient)
 
-| Class | Font | Where used |
-|-------|------|------------|
-| `font-sans` (default, `font-family: 'Inter', sans-serif`) | **Inter** | `body` in `global.css`; virtually all UI text |
-| `font-serif` | Serif (browser default serif stack) | Footer institution name; President's signature ("Rev. Joval C. Kisinamal"); pull-quote style signatures |
+**Classes:** `bg-gradient-to-r from-primary to-primary-light`  
+**Values:** `#0033A0` → `#407BFF` (light mode); `#3B82F6` → `#407BFF` (dark mode)
 
-> Inter is applied globally via `body { font-family: 'Inter', sans-serif; }` in `global.css`. No external font import (Google Fonts) is present in the current codebase — Inter is expected to be available system-wide or via a CDN not shown in the reviewed files.
+This is the site's signature gradient. It is applied exclusively to **gradient text** using `text-transparent bg-clip-text`.
 
-### 3.2 Font Weights
+**Usage locations:**
 
-| Weight class | Numeric | Usage |
-|--------------|---------|-------|
+| Component | Element | Wrapper classes | Notes |
+|-----------|---------|-----------------|-------|
+| `Hero.astro` | H1 "Seminary Inc." | `text-6xl md:text-8xl lg:text-9xl font-extrabold text-site-text leading-[0.95] mb-10 tracking-tighter` | "Presbyterian Bible" is solid `text-site-text`; "Seminary Inc." is the gradient span |
+| `Excellence.astro` | H2 "Spiritual, Character, Practical, and Academics" | `text-4xl md:text-5xl font-extrabold text-site-text leading-tight tracking-tight` | Gradient wraps only that phrase |
+| `About.astro` | H1 "Foundations" | `text-4xl sm:text-6xl md:text-8xl font-extrabold text-site-text mb-8 md:mb-10 tracking-tighter` | Includes `pr-[0.1em]`, `selection:bg-primary/30`, `style="box-decoration-break: clone; -webkit-box-decoration-break: clone;"` |
+| `About.astro` | H1 "Journey" | `text-3xl md:text-5xl font-black text-site-text tracking-tighter mb-4` | Same gradient span + `pr-[0.1em]` + selection + box-decoration-break |
+| `Pricing.astro` | H1 "Financial Transparency" | `text-4xl sm:text-6xl md:text-8xl font-black text-site-text tracking-tighter mb-6 leading-[0.9]` | Same gradient span + `pr-[0.1em]` + style clone |
+
+**Inline gradient-text pattern (copy this exactly):**
+
+```html
+<h1 class="text-4xl sm:text-6xl md:text-8xl font-extrabold text-site-text mb-8 md:mb-10 tracking-tighter">
+  Our <span class="text-transparent bg-clip-text bg-gradient-to-r from-primary to-primary-light pr-[0.1em] selection:bg-primary/30" style="box-decoration-break: clone; -webkit-box-decoration-break: clone;">
+    Foundations
+  </span>
+</h1>
+```
+
+Key details:
+- `pr-[0.1em]` adds right padding to the gradient span so the gradient doesn't touch the next character.
+- `selection:bg-primary/30` gives the highlighted text a tinted brand selection color.
+- `box-decoration-break: clone` ensures the gradient renders correctly across line breaks.
+
+### 3.2 Diagonal Decorative Gradient
+
+**Classes:** `bg-gradient-to-tr from-primary/10 to-transparent rounded-[32px] blur-2xl opacity-50 group-hover:opacity-100 transition-opacity duration-500`  
+**Usage:** `About.astro` — video section decorative background behind the iframe wrapper. Appears on group hover.
+
+### 3.3 Bottom Fade Gradient
+
+**Classes:** `absolute inset-0 bg-gradient-to-b from-primary/5 to-transparent opacity-50`  
+**Usage:** `Pricing.astro` — bottom decorative overlay on the "Ready to pursue your calling?" CTA card.
+
+---
+
+## 4. Typography System
+
+### 4.1 Font Families
+
+| Class | Font | Source | Where used |
+|-------|------|--------|------------|
+| `font-sans` (default) | **Inter** | System / expected available | `body` in `global.css`; virtually all UI text |
+| `font-serif` | Serif (browser default) | System serif stack | Footer institution name; President's signature (`Rev. Joval C. Kisinamal`) |
+
+> Inter is applied globally via `body { font-family: 'Inter', sans-serif; }` in `global.css`. No external Google Fonts import is present in the codebase.
+
+### 4.2 Font Weight Scale
+
+| Class | Weight | Usage |
+|-------|--------|-------|
 | `font-medium` | 500 | Body copy, mission list items, program descriptions |
-| `font-bold` | 700 | Card names, headings, labels, buttons |
-| `font-black` | 900 | Hero section titles, page H1s, pillar titles, section "Foundations"/"Faculty"/"Journey" |
-| `font-extrabold` | 800 | Hero H1 ("Presbyterian Bible Seminary Inc."), program listing titles, excellence headings |
-| `font-serif` | — | Footer logo text, president signature |
+| `font-bold` | 700 | Card names, headings, labels, buttons, faculty names |
+| `font-extrabold` | 800 | Hero H1, program listing titles, excellence headings, section H2s |
+| `font-black` | 900 | Hero section titles, page H1s ("Foundations", "Faculty", "Journey", "Contact.", "Admissions."), pillar titles, kickers |
+| `font-serif` | — | Footer logo text, president signature name |
 
-### 3.3 Font Sizes
+### 4.3 Font Size Scale
 
-Standard Tailwind scale plus many custom arbitrary values:
+| Size | Value | Usage |
+|------|-------|-------|
+| `text-[8px]` | 8px | Program role tags (Missionary, Artist, Designer, Animator, Teacher) |
+| `text-[9px]` | 9px | Faculty degree tags; footer contact labels; solas badges; fee detail tags |
+| `text-[10px]` | 10px | Faculty role badges; pillar index labels; footer small text; privacy/academic links; pricing labels; admission labels; contact labels |
+| `text-[11px]` | 11px | Faculty titles (italic); form labels |
+| `text-[12px]` | 12px | Program type badge on detail page |
+| `text-[14px]` | 14px | Mission/vision card titles |
+| `text-[15px]` | 15px | Nav links; nav Register button |
+| `text-base` | 16px | Body copy, program descriptions |
+| `text-lg` | 18px | Maxim quote, pricing section text |
+| `text-xl` | 20px | Program card titles, mission/vision body |
+| `text-2xl` | 24px | Faculty names, pillar card titles |
+| `text-3xl` | 30px | Section H2s ("Programs Offered:", "From the President's Desk") |
+| `text-4xl` | 36px | About "Our Foundations" H1 |
+| `text-5xl` | 40px | Program detail H1, programs index H1 |
+| `text-6xl` | 48px | Contact H1 |
+| `text-8xl` | 64px | Hero H1 md breakpoint |
+| `text-9xl` | 72px | Hero H1 lg breakpoint; Admissions H1 md+ |
 
-| Size | Typical usage |
-|------|---------------|
-| `text-[8px]` | Program role tags (Missionary, Artist, Designer…) |
-| `text-[9px]` | Faculty degree tags; footer contact labels; solas badges; fee detail tags |
-| `text-[10px]` | Faculty role badges; pillar index labels; footer small text; privacy/academic links; pricing labels; admission labels; contact labels |
-| `text-[11px]` | Faculty titles (italic); form labels |
-| `text-[12px]` | Program type badge on detail page |
-| `text-[14px]` | Mission/vision card titles |
-| `text-[15px]` | Nav links; nav Register button |
-| `text-base` (16px) | Body copy, program descriptions |
-| `text-lg` (18px) | Maxim quote, pricing section text |
-| `text-xl` (20px) | Program card titles, mission/vision body |
-| `text-2xl` (24px) | Faculty names, pillar card titles |
-| `text-3xl` (30px) | Section H2s ("Programs Offered:", "From the President's Desk") |
-| `text-4xl` (36px) | About "Our Foundations" H1 |
-| `text-5xl` (40px) | Program detail H1, programs index H1 |
-| `text-6xl` (48px) | Contact H1 |
-| `text-8xl` (64px) | Hero H1 md breakpoint |
-| `text-9xl` (72px) | Hero H1 lg breakpoint; Admissions H1 md+ |
-
-### 3.4 Letter Tracking (letter-spacing)
+### 4.4 Letter Tracking (letter-spacing)
 
 | Class | Usage |
 |-------|-------|
@@ -162,7 +219,7 @@ Standard Tailwind scale plus many custom arbitrary values:
 | `tracking-[0.4em]` | About section "Statement of Faith" label, admission process kicker |
 | `tracking-wider` | Faculty titles |
 
-### 3.5 Line Height
+### 4.5 Line Height Scale
 
 | Class | Usage |
 |-------|-------|
@@ -173,22 +230,44 @@ Standard Tailwind scale plus many custom arbitrary values:
 | `leading-[0.95]` | Hero H1 |
 | `leading-[1.2]` / `leading-[1.1]` | About vision text |
 | `leading-snug` | Mission list items |
+| `leading-[0.8]` | Contact/admission large italic headings |
+| `leading-[0.9]` | Pricing H1 |
 
-### 3.6 Font Style & Variant
+### 4.6 Font Style & Text Transform
 
 - `italic` — Faculty titles, mission list items, program descriptions (programs index), president letter body prose, pricing "Zero Tuition. Full Calling.", contact/admission large headings ("Contact.", "Admissions.", "Send a Message", "Student Registration")
 - `uppercase` — Nearly all labels, kickers, badges, footer text, nav mobile items
 - `font-black` + `italic` — President signature name, contact/admission H1s
 
-### 3.7 Selection Color
+### 4.7 Selection Color
 
-- `selection:bg-primary/30` — Custom highlight color applied to gradient headings (about, pricing, hero) via inline `style` on the `<span>`.
+- `selection:bg-primary/30` — Custom highlight color applied to gradient headings (about, pricing, hero).
+
+### 4.8 Text Outline (Contact & Admission H1s)
+
+Defined in page-level `<style>` blocks in `contact.astro` and `admission.astro`:
+
+```css
+.text-outline {
+  -webkit-text-stroke: 1.5px currentColor;
+}
+@media (min-width: 768px) {
+  .text-outline {
+    -webkit-text-stroke: 2px currentColor;
+  }
+}
+.text-outline {
+  color: transparent;
+}
+```
+
+Used on the `.` after "Contact" and "Admissions" to create a stroked punctuation mark.
 
 ---
 
-## 4. Spacing & Layout
+## 5. Spacing System
 
-### 4.1 Page Container & Max-Widths
+### 5.1 Page Container & Max-Widths
 
 | Class | Sections / Pages |
 |-------|------------------|
@@ -202,15 +281,14 @@ Standard Tailwind scale plus many custom arbitrary values:
 | `max-w-xl` | Excellence text side |
 | `max-w-md` | Footer description |
 
-### 4.2 Standard Page Padding
+### 5.2 Standard Page Padding
 
 | Class | Context |
 |-------|---------|
 | `px-4 md:px-10` | Default section container padding (hero, navbar, footer, programs, accreditations, president letter) |
 | `px-6` | About page sections, contact main, pricing main |
-| `px-4 md:px-10` (navbar) | Nav container |
 
-### 4.3 Section Vertical Padding
+### 5.3 Section Vertical Padding
 
 | Class | Context |
 |-------|---------|
@@ -222,12 +300,12 @@ Standard Tailwind scale plus many custom arbitrary values:
 | `py-24` | Accreditations, president letter section, program detail |
 | `py-32` | Maxim section |
 
-### 4.4 Gaps
+### 5.4 Gap Scale
 
 | Gap | Context |
 |-----|---------|
 | `gap-2` | Nav link/icon groups, faculty degree pills |
-| `gap-3` | Faculty card image-to-content, accordion-like groups |
+| `gap-3` | Faculty image-to-content, accordion-like groups |
 | `gap-4` | Grid gaps (faculty grid, pillars), icon+text groups |
 | `gap-5` | Hero CTA button group |
 | `gap-6` | Default grid gap (faculty, pricing cards), form fields |
@@ -236,7 +314,7 @@ Standard Tailwind scale plus many custom arbitrary values:
 | `gap-12` | Footer grid, hero bottom |
 | `gap-16` | President letter flex row |
 
-### 4.5 Layout Primitives
+### 5.5 Layout Primitives
 
 - `flex flex-col` — Body (Layout), most sections stack vertically
 - `grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3` — Faculty grid, program grid
@@ -247,25 +325,26 @@ Standard Tailwind scale plus many custom arbitrary values:
 
 ---
 
-## 5. Border Radius / Rounding
+## 6. Border Radius System (Defined Scale)
 
-| Radius value | Usage |
-|--------------|-------|
-| `rounded-full` | Pills, badges, type tags, status pills, accent dividers, circular decorative blobs, icon containers (some) |
-| `rounded-lg` | Nav desktop links, small badges, select wrappers |
-| `rounded-md` | Faculty degree tags, pricing detail tags |
-| `rounded-xl` | Nav register button, icon containers (w-8/h-8), faculty flying photo (start), table cells |
-| `rounded-2xl` | **Most common.** Buttons, modal close, mission/vision icon boxes, pillar icon boxes, video container, faculty photo (end state), contact icon boxes |
-| `rounded-[24px]` | Navbar container, navbar mobile menu, president photo (flying & start), select inputs |
-| `rounded-[32px]` | **Card standard.** FacultyCard, PillarCard, pricing cards, contact cards, admission cards, program cards (hero section), footer, modal, maxim section |
-| `rounded-[40px]` | MissionVisionCard, president letter card (md+), programs list card (md+), pricing cards (md+), contact form card |
-| `rounded-[48px]` | President letter card (lg, sticky sidebar image) |
-| `rounded-t-[40px]` | Program detail header top-only rounding |
-| `overflow-hidden` | Paired with radius on image containers (faculty, video, president photo) |
+| Radius value | Usage | Examples |
+|--------------|-------|----------|
+| `rounded-full` | Pills, badges, type tags, status pills, accent dividers, circular decorative blobs, icon containers (some) | Type pills, status badges, accent `h-1 w-12`, decorative blobs |
+| `rounded-lg` | Nav desktop links, small badges, select wrappers | Nav desktop links |
+| `rounded-md` | Faculty degree tags, pricing detail tags | Faculty degree spans, pricing detail tags |
+| `rounded-xl` | Nav register button, icon containers (w-8/h-8), faculty flying photo (start) | Nav Register, Excellence aim icons |
+| `rounded-2xl` | **Most common.** Buttons, modal close, mission/vision icon boxes, pillar icon boxes, video container, faculty photo (end state), contact icon boxes | Hero CTAs, MissionVisionCard icon, PillarCard icon, Programs icon box |
+| `rounded-[24px]` | Navbar container, navbar mobile menu, president photo (flying & start), select inputs | Navbar shell, mobile menu, PresidentLetter photos |
+| `rounded-[32px]` | **Card standard.** FacultyCard, PillarCard, pricing cards, contact cards, admission cards, program cards (hero section), footer, modal, maxim section | Most cards across the site |
+| `rounded-[40px]` | MissionVisionCard, president letter card (md+), programs list card (md+), pricing cards (md+), contact form card | Larger cards |
+| `rounded-[48px]` | President letter card (lg, sticky sidebar image) | PresidentLetter main card |
+| `rounded-t-[40px]` | Program detail header top-only rounding | Program detail page header |
+
+> Rule: Always pair `overflow-hidden` with radius on image containers (faculty photos, video, president photo) to clip content.
 
 ---
 
-## 6. Shadows & Elevation
+## 7. Shadow & Elevation System
 
 | Shadow | Usage |
 |--------|-------|
@@ -278,112 +357,206 @@ Standard Tailwind scale plus many custom arbitrary values:
 | `shadow-primary/20` | Hero secondary button hover, pricing scholarship card, contact panel, admission submit button |
 | `shadow-primary/10` | Hero secondary button hover, program cards hover |
 | `shadow-primary/5` | Accreditations cards hover |
-| `hover:-translate-y-1` / `hover:-translate-y-2` | Lift on hover (buttons, cards) |
-| `active:scale-95` / `active:scale-95` | Press-down feedback on all CTAs |
-| `hover:brightness-110` | Nav register button |
+
+**Lift / press interactions:**
+- `hover:-translate-y-1` — Buttons, cards (subtle lift)
+- `hover:-translate-y-2` — Cards (stronger lift)
+- `active:scale-95` — Press-down feedback on all CTAs
+- `hover:brightness-110` — Nav register button
 
 ---
 
-## 7. Component Catalog
+## 8. Card System (Comprehensive Usage Guide)
 
-### 7.1 Buttons / CTAs
+The site uses **four primary card variants**, all built on the same semantic foundation: `bg-site-card border border-site-border ... transition-all ... group`.
 
-**Primary CTA** (Hero, pricing, admission)
-```
-bg-primary text-white px-14 py-6 rounded-2xl font-bold text-xl
-transition-all duration-300
-hover:-translate-y-1 hover:shadow-2xl hover:shadow-primary/40
-active:scale-95
-```
-Variants: `px-7 py-3 text-[15px]` (nav Register), `px-10 py-5 text-lg` (programs index), `px-8 md:px-12 py-5 md:py-6 font-black text-lg md:text-xl uppercase italic group` (pricing CTA with ArrowRight), `px-12 py-5 md:py-6 font-black text-lg md:text-xl uppercase italic tracking-tight` (contact submit).
+### 8.1 Card Foundation (Apply to all cards)
 
-**Secondary / Outline CTA** (Hero "Learn More")
-```
-bg-site-card/60 backdrop-blur-sm text-site-text border-2 border-site-border
-px-14 py-6 rounded-2xl font-bold text-xl
-transition-all duration-300
-hover:-translate-y-1 hover:bg-site-card hover:border-primary/20 hover:shadow-xl hover:shadow-primary/10
-active:scale-95
+```html
+<div class="bg-site-card border border-site-border rounded-[32px] overflow-hidden group transition-all duration-300 hover:border-primary/20">
+  <!-- card content -->
+</div>
 ```
 
-**Ghost / Tinted CTA** (Programs "View All Programs")
+- `bg-site-card` — surface color (white light / slate-800 dark)
+- `border border-site-border` — subtle border
+- `rounded-[32px]` — standard card rounding
+- `overflow-hidden` — clips images and child radii
+- `group` — enables `group-hover:*` on children
+- `hover:border-primary/20` — brand-tinted border on hover
+- `transition-all duration-300` / `duration-500` — smooth hover transitions
+
+### 8.2 Card Variant A: FacultyCard (`src/components/FacultyCard.astro`)
+
+**Use for:** Faculty member listings with photo, name, role, degrees, and "View Profile" CTA.
+
+**Anatomy:**
 ```
-bg-primary/10 text-primary px-6 py-3 rounded-xl font-bold
-hover:bg-primary hover:text-white transition-all duration-300
+Wrapper: bg-site-card border border-site-border rounded-[32px] overflow-hidden group hover:border-primary/20 transition-all duration-500 flex flex-col h-full
+  Image wrapper: aspect-[4/5] overflow-hidden bg-site-bg border-b border-site-border
+    img: w-full h-full object-cover transition-transform duration-700 scale-100 group-hover:scale-105
+  Body: p-8 flex flex-col flex-grow
+    Role: text-[10px] font-black text-primary uppercase tracking-[0.2em] mb-2
+    Name: text-2xl font-bold text-site-text mb-2 leading-tight
+    Titles: text-[11px] text-primary/60 font-bold uppercase tracking-wider mb-4 italic
+    Degree pills (flex-wrap gap-2):
+      text-[9px] font-black text-site-muted bg-site-bg border border-site-border px-2 py-1 rounded-md uppercase
+    CTA button (mt-auto):
+      bg-primary/5 hover:bg-primary/10 border border-primary/10 rounded-2xl text-primary font-bold text-xs uppercase tracking-widest transition-all group/btn
+      px-6 py-4 flex items-center justify-between w-full
+      Contains Plus icon (size=16) with group-hover/btn:rotate-90
 ```
 
-**Card CTA** (FacultyCard "View Profile")
+**Modal detail template** (hidden `<template id="data-{id}">`):
+- Image: `w-32 h-32 rounded-2xl object-cover border border-site-border shadow-lg`
+- Name: `text-3xl font-black text-site-text leading-tight`
+- Role: `text-primary font-bold uppercase tracking-widest text-xs mt-1`
+- Titles: `text-site-muted italic text-sm mt-2 leading-relaxed`
+- Section headers: `text-xs font-black text-primary uppercase tracking-[0.3em] border-b border-primary/10 pb-2`
+
+### 8.3 Card Variant B: PillarCard (`src/components/PillarCard.astro`)
+
+**Use for:** Statement-of-faith pillars — icon + numbered label + title + description.
+
+**Anatomy:**
 ```
-bg-primary/5 hover:bg-primary/10 border border-primary/10 rounded-2xl
-text-primary font-bold text-xs uppercase tracking-widest
-transition-all group/btn
-flex items-center justify-between w-full px-6 py-4
-```
-Contains `Plus` icon (lucide) with `group-hover/btn:rotate-90`.
-
-**Nav mobile CTA** (Register Now)
-```
-block w-full bg-primary text-white text-center py-5 rounded-2xl
-font-bold text-lg shadow-lg active:scale-95 transition-all
+Wrapper: bg-site-card border border-site-border p-10 rounded-[32px] hover:border-primary/20 transition-all duration-300 group flex flex-col items-center text-center h-full
+  Index label: text-[10px] font-black text-primary/40 uppercase block leading-none mb-2 tracking-[0.2em]  ("Pillar 01")
+  Title: text-2xl font-extrabold text-site-text tracking-tight uppercase leading-none
+  Icon container: w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center text-primary mb-4 group-hover:scale-110 transition-transform duration-500
+  Body (slot): text-base text-site-muted leading-relaxed font-medium max-w-[280px]
 ```
 
-### 7.2 Cards
+### 8.4 Card Variant C: MissionVisionCard (`src/components/MissionVisionCard.astro`)
 
-**FacultyCard** (`src/components/FacultyCard.astro`)
-- Wrapper: `bg-site-card border border-site-border rounded-[32px] overflow-hidden group hover:border-primary/20 transition-all duration-500 flex flex-col h-full`
-- Image: `aspect-[4/5] overflow-hidden bg-site-border border-b border-site-border`; `img` = `w-full h-full object-cover transition-transform duration-700 scale-100 group-hover:scale-105`
-- Body: `p-8 flex flex-col flex-grow`
-- Role: `text-[10px] font-black text-primary uppercase tracking-[0.2em] mb-2`
-- Name: `text-2xl font-bold text-site-text mb-2 leading-tight`
-- Titles: `text-[11px] text-primary/60 font-bold uppercase tracking-wider mb-4 italic`
-- Degree pills: `text-[9px] font-black text-site-muted bg-site-border border border-site-border px-2 py-1 rounded-md uppercase`
-- Detail template (modal): image `w-32 h-32 rounded-2xl object-cover border border-site-border shadow-lg`; name `text-3xl font-black text-site-text leading-tight`
+**Use for:** Vision and mission statements — larger icon box + title + body.
 
-**PillarCard** (`src/components/PillarCard.astro`)
-- Wrapper: `bg-site-card border border-site-border p-10 rounded-[32px] hover:border-primary/20 transition-all duration-300 group flex flex-col items-center text-center h-full`
-- Index label: `text-[10px] font-black text-primary/40 uppercase block leading-none mb-2 tracking-[0.2em]` ("Pillar 01")
-- Title: `text-2xl font-extrabold text-site-text tracking-tight uppercase leading-none`
-- Icon container: `w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center text-primary mb-4 group-hover:scale-110 transition-transform duration-500`
-- Body: `text-base text-site-muted leading-relaxed font-medium max-w-[280px]` (slot content)
+**Anatomy:**
+```
+Wrapper: bg-site-card border border-site-border p-10 rounded-[40px] shadow-sm flex flex-col group hover:border-primary/20 transition-colors duration-500
+  Icon container: w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center text-primary group-hover:scale-110 transition-transform duration-500 shrink-0
+  Title: text-[14px] font-black uppercase tracking-[0.2em] text-primary
+  Body (slot): flex-grow
+```
 
-**MissionVisionCard** (`src/components/MissionVisionCard.astro`)
-- Wrapper: `bg-site-card border border-site-border p-10 rounded-[40px] shadow-sm flex flex-col group hover:border-primary/20 transition-colors duration-500`
-- Icon container: `w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center text-primary group-hover:scale-110 transition-transform duration-500 shrink-0`
-- Title: `text-[14px] font-black uppercase tracking-[0.2em] text-primary`
-- Body: `flex-grow` (slot content)
+### 8.5 Card Variant D: Program Card (`src/components/Programs.astro`)
 
-**Program card** (`src/components/Programs.astro` — hero listing)
-- Wrapper: `group bg-site-card border border-site-border p-8 rounded-[32px] transition-all duration-500 ease-out hover:-translate-y-2 shadow-sm hover:shadow-2xl hover:shadow-primary/10 flex flex-col w-full min-h-full`
-- Responsive width: `md:w-[calc(50%-1rem)] lg:w-[calc(33.333%-1.5rem)]`
-- Icon: `text-primary bg-site-border w-14 h-14 md:w-16 md:h-16 shrink-0 aspect-square flex items-center justify-center rounded-2xl group-hover:scale-110 transition-transform duration-500 ease-out border border-site-border overflow-hidden`
-- Type pill: `text-[9px] md:text-[10px] font-black uppercase tracking-widest text-primary bg-primary/10 px-3 py-1.5 rounded-full`
-- Title: `text-xl md:text-2xl font-bold text-site-text mb-3 group-hover:text-primary transition-colors duration-300`
-- CTA: `inline-flex items-center gap-2 text-primary font-bold text-sm group-hover:gap-4 transition-all duration-300` + ArrowRight
+**Use for:** Academic program listings on homepage.
 
-**Program card** (`src/pages/programs/index.astro` — detail listing)
-- Wrapper: `group bg-site-card border border-site-border rounded-[40px] p-8 md:p-12 transition-all duration-500 hover:shadow-2xl hover:shadow-primary/5 hover:border-primary/20`
-- Icon: `w-20 h-20 shrink-0 aspect-square ... rounded-[24px] border border-site-border group-hover:scale-105`
-- CTA: `bg-primary text-white px-10 py-5 rounded-2xl font-bold text-lg hover:-translate-y-1 hover:shadow-lg transition-all active:scale-95`
+**Anatomy:**
+```
+Wrapper: group bg-site-card border border-site-border p-8 rounded-[32px] transition-all duration-500 ease-out hover:-translate-y-2 shadow-sm hover:shadow-2xl hover:shadow-primary/10 flex flex-col w-full min-h-full
+  Responsive width: md:w-[calc(50%-1rem)] lg:w-[calc(33.333%-1.5rem)]
+  Top row (flex justify-between items-start mb-8):
+    Icon box: text-primary bg-site-bg w-14 h-14 md:w-16 md:h-16 shrink-0 aspect-square flex items-center justify-center rounded-2xl group-hover:scale-110 transition-transform duration-500 ease-out border border-site-border overflow-hidden
+    Type pill: text-[9px] md:text-[10px] font-black uppercase tracking-widest text-primary bg-primary/10 px-3 py-1.5 rounded-full
+  Body (flex-grow):
+    Title: text-xl md:text-2xl font-bold text-site-text mb-3 group-hover:text-primary transition-colors duration-300
+    Duration row: text-[10px] md:text-xs font-semibold text-site-muted uppercase tracking-wider + Clock icon size=14
+    Description: text-site-muted leading-relaxed mb-8 text-sm md:text-base line-clamp-3 font-medium
+  CTA (mt-auto): inline-flex items-center gap-2 text-primary font-bold text-sm group-hover:gap-4 transition-all duration-300 + ArrowRight size=20
+```
 
-**Pricing fee card** (`src/pages/pricing.astro`)
-- Wrapper: `bg-site-card border border-site-border rounded-[32px] md:rounded-[40px] p-8 md:p-10 flex flex-col justify-between hover:border-primary/40 transition-all duration-500 shadow-xl shadow-black/5 w-full`
-- Price: `text-site-text font-black text-2xl md:text-3xl tracking-tight` prefixed with `₱`
-- "100% Free": `text-primary font-black uppercase tracking-tighter text-sm md:text-base italic`
+### 8.6 Card Variant E: Program Listing Card (`src/pages/programs/index.astro`)
 
-### 7.3 Navbar
+**Use for:** Full program detail listing cards (larger variant).
 
-- Container: `sticky top-0 z-50 w-full px-4 md:px-10 py-5`
-- Nav shell: `max-w-[1516px] mx-auto bg-site-card/80 backdrop-blur-md border border-site-border rounded-[24px] px-6 py-3.5 flex items-center justify-between shadow-xl shadow-black/5`
-- Logo: `w-10 h-10 md:w-12 md:h-12 object-contain`
-- Desktop links: `text-[15px] font-medium text-site-text px-4 py-2 hover:bg-site-border rounded-lg transition-all`
-- Nav register: `bg-primary text-white px-7 py-3 rounded-xl font-bold text-[15px] hover:brightness-110 transition-all shadow-md`
-- Mobile toggle: `lg:hidden p-2.5 text-site-text hover:bg-site-border rounded-xl transition-all relative w-10 h-10 flex items-center justify-center`
-- Mobile menu: `hidden lg:hidden absolute top-full left-4 right-4 mt-4 p-6 bg-site-card/95 backdrop-blur-xl border border-site-border rounded-[32px] shadow-2xl`
-- Mobile links: `text-lg font-bold text-site-text p-4 hover:bg-primary/10 hover:text-primary rounded-2xl transition-all`
-- Mobile register: `block w-full bg-primary text-white text-center py-5 rounded-2xl font-bold text-lg shadow-lg active:scale-95 transition-all`
-- Icons: `Menu`, `X` from lucide-react (size={24})
+**Anatomy:**
+```
+Wrapper: group bg-site-card border border-site-border rounded-[40px] p-8 md:p-12 transition-all duration-500 hover:shadow-2xl hover:shadow-primary/5 hover:border-primary/20
+  Icon box: w-20 h-20 shrink-0 aspect-square ... rounded-[24px] border border-site-border group-hover:scale-105
+  CTA: bg-primary text-white px-10 py-5 rounded-2xl font-bold text-lg hover:-translate-y-1 hover:shadow-lg transition-all active:scale-95
+```
 
-### 7.4 Footer
+### 8.7 Card Variant F: Pricing Fee Card (`src/pages/pricing.astro`)
+
+**Use for:** Tuition fee brackets.
+
+**Anatomy:**
+```
+Wrapper: bg-site-card border border-site-border rounded-[32px] md:rounded-[40px] p-8 md:p-10 flex flex-col justify-between hover:border-primary/40 transition-all duration-500 shadow-xl shadow-black/5 w-full
+  Type: text-2xl md:text-3xl font-black text-site-text leading-tight mb-2 uppercase tracking-tighter italic
+  Note: text-[10px] font-black text-primary uppercase tracking-[0.3em]
+  Price: text-site-text font-black text-2xl md:text-3xl tracking-tight (prefixed with ₱)
+  "100% Free": text-primary font-black uppercase tracking-tighter text-sm md:text-base italic
+  Detail tags: text-[9px] font-black text-site-muted bg-site-bg border border-site-border px-3 py-1.5 rounded-lg uppercase tracking-wider
+```
+
+### 8.8 Card Usage Rules (Do's and Don'ts)
+
+| Do | Don't |
+|----|-------|
+| Use `bg-site-card` + `border border-site-border` for all card surfaces | Hardcode `#FFFFFF` or `#F7F7F8` backgrounds |
+| Use `rounded-[32px]` as default card radius; `rounded-[40px]` for featured cards | Mix arbitrary radii without reason |
+| Add `group-hover:border-primary/20` on interactive cards | Omit hover states on clickable cards |
+| Use `overflow-hidden` on cards containing images | Let images overflow card borders |
+| Use `h-full min-h-full` + `items-stretch` on parent grid for equal card heights | Allow uneven card heights in grids |
+| Use `duration-300` for color/border transitions, `duration-500` for transform/scale | Use inconsistent transition durations |
+
+---
+
+## 9. Component Catalog (Exact Class Strings)
+
+### 9.1 Buttons / CTAs
+
+**Primary CTA** (Hero, pricing, admission):
+```html
+<a href="#" class="bg-primary text-white px-14 py-6 rounded-2xl font-bold text-xl transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-primary/40 active:scale-95">
+  Register Now
+</a>
+```
+Variants:
+- Nav Register: `bg-primary text-white px-7 py-3 rounded-xl font-bold text-[15px] hover:brightness-110 transition-all shadow-md`
+- Programs index CTA: `bg-primary text-white px-10 py-5 rounded-2xl font-bold text-lg hover:-translate-y-1 hover:shadow-lg transition-all active:scale-95`
+- Pricing CTA (with ArrowRight group): `inline-flex w-full md:w-auto items-center justify-center gap-3 bg-primary text-white px-8 md:px-12 py-5 md:py-6 rounded-2xl font-black text-lg md:text-xl hover:shadow-2xl hover:shadow-primary/40 transition-all hover:-translate-y-2 active:scale-95 group uppercase italic`
+- Contact/Admission submit: `w-full md:w-auto bg-primary text-white px-12 py-5 md:py-6 rounded-2xl font-black text-lg md:text-xl flex items-center justify-center gap-4 hover:shadow-[0_20px_50px_rgba(var(--primary-rgb),0.4)] transition-all hover:-translate-y-1 active:scale-95 group uppercase italic tracking-tight`
+
+**Secondary / Outline CTA** (Hero "Learn More"):
+```html
+<a href="#" class="bg-site-card/60 backdrop-blur-sm text-site-text border-2 border-site-border px-14 py-6 rounded-2xl font-bold text-xl transition-all duration-300 hover:-translate-y-1 hover:bg-site-card hover:border-primary/20 hover:shadow-xl hover:shadow-primary/10 active:scale-95">
+  Learn More
+</a>
+```
+
+**Ghost / Tinted CTA** (Programs "View All Programs"):
+```html
+<a href="#" class="bg-primary/10 text-primary px-6 py-3 rounded-xl font-bold hover:bg-primary hover:text-white transition-all duration-300">
+  View All Programs
+</a>
+```
+
+**Card CTA** (FacultyCard "View Profile"):
+```html
+<button class="mt-auto flex items-center justify-between w-full px-6 py-4 bg-primary/5 hover:bg-primary/10 border border-primary/10 rounded-2xl text-primary font-bold text-xs uppercase tracking-widest transition-all group/btn">
+  View Profile
+  <Plus size={16} className="transition-transform duration-300 group-hover/btn:rotate-90" />
+</button>
+```
+
+**Nav mobile CTA**:
+```html
+<a href="#" class="block w-full bg-primary text-white text-center py-5 rounded-2xl font-bold text-lg shadow-lg active:scale-95 transition-all">
+  Register Now
+</a>
+```
+
+### 9.2 Navbar
+
+```html
+<header class="sticky top-0 z-50 w-full px-4 md:px-10 py-5">
+  <nav class="max-w-[1516px] mx-auto bg-site-card/80 backdrop-blur-md border border-site-border rounded-[24px] px-6 py-3.5 flex items-center justify-between shadow-xl shadow-black/5">
+    <!-- Logo: w-10 h-10 md:w-12 md:h-12 object-contain -->
+    <!-- Desktop links: text-[15px] font-medium text-site-text px-4 py-2 hover:bg-site-border rounded-lg transition-all -->
+    <!-- Nav Register: bg-primary text-white px-7 py-3 rounded-xl font-bold text-[15px] hover:brightness-110 transition-all shadow-md -->
+    <!-- Mobile toggle: lg:hidden p-2.5 text-site-text hover:bg-site-border rounded-xl transition-all relative w-10 h-10 flex items-center justify-center -->
+  </nav>
+  <!-- Mobile menu: hidden lg:hidden absolute top-full left-4 right-4 mt-4 p-6 bg-site-card/95 backdrop-blur-xl border border-site-border rounded-[32px] shadow-2xl -->
+</header>
+```
+
+Icons: `Menu`, `X` from lucide-react (size={24}).
+
+### 9.3 Footer
 
 - Wrapper: `bg-site-card border-t border-site-border mt-20 relative overflow-hidden`
 - Decorative blob: `absolute top-0 right-0 w-1/3 h-full bg-primary/5 -skew-x-12 translate-x-20 pointer-events-none`
@@ -393,246 +566,239 @@ font-bold text-lg shadow-lg active:scale-95 transition-all
 - Accent divider: `h-1 w-12 bg-primary mt-4`
 - Description: `text-site-muted text-sm leading-relaxed max-w-md`
 - Section kickers: `text-xs font-black uppercase tracking-widest text-primary`
-- Location icon: inline SVG `w-4 h-4 text-primary` stroke-width 2.5 round caps
+- Location icon: inline SVG `w-4 h-4 text-primary` stroke-width="2.5" round caps/joins
 - Campus labels: `text-[10px] font-bold text-primary uppercase mb-1`; addresses `text-xs text-site-text leading-relaxed`
 - Contact labels: `text-[10px] font-bold text-site-muted uppercase mb-1`
 - Email link: `text-sm font-semibold text-site-text hover:text-primary transition-colors decoration-primary/30 underline underline-offset-4`
-- Phone: `text-xs font-bold text-site-text`
 - Copyright: `text-[10px] font-bold text-site-muted uppercase tracking-widest`
 - Footer links: `text-[10px] font-bold text-primary uppercase hover:opacity-70 transition-opacity`
 
-### 7.5 Hero (`src/components/Hero.astro`)
+### 9.4 Hero
 
-- Section: `relative w-full pt-48 pb-40 overflow-hidden -mt-[116px]` (negative margin pulls up behind navbar)
-- Container: `relative z-10 max-w-[1596px] mx-auto px-4 md:px-10 text-center`
-- Kicker: `inline-flex items-center gap-2 bg-site-card/40 backdrop-blur-sm px-6 py-3 rounded-full border border-site-border mb-12 shadow-sm`; text `text-base md:text-lg font-bold tracking-tight text-primary`
-- H1: `text-6xl md:text-8xl lg:text-9xl font-extrabold text-site-text leading-[0.95] mb-10 tracking-tighter`
-  - "Presbyterian Bible" plain; `<br class="hidden lg:block" />`; "Seminary Inc." in gradient
-- Gradient text: `text-transparent bg-clip-text bg-gradient-to-r from-primary to-primary-light`
-- Subhead: `text-site-muted max-w-3xl mx-auto text-xl md:text-2xl leading-relaxed mb-16 font-medium`
-- CTA group: `flex flex-col sm:flex-row justify-center items-center gap-5`
+```html
+<section class="relative w-full pt-48 pb-40 overflow-hidden -mt-[116px]">
+  <div class="relative z-10 max-w-[1596px] mx-auto px-4 md:px-10 text-center">
+    <!-- Kicker: inline-flex items-center gap-2 bg-site-card/40 backdrop-blur-sm px-6 py-3 rounded-full border border-site-border mb-12 shadow-sm -->
+    <!-- H1: text-6xl md:text-8xl lg:text-9xl font-extrabold text-site-text leading-[0.95] mb-10 tracking-tighter -->
+    <!-- Gradient span: text-transparent bg-clip-text bg-gradient-to-r from-primary to-primary-light -->
+    <!-- Subhead: text-site-muted max-w-3xl mx-auto text-xl md:text-2xl leading-relaxed mb-16 font-medium -->
+    <!-- CTA group: flex flex-col sm:flex-row justify-center items-center gap-5 -->
+  </div>
+</section>
+```
 
-### 7.6 Excellence (`src/components/Excellence.astro`)
+### 9.5 Excellence
 
 - Section: `max-w-[1596px] mx-auto px-4 md:px-10 py-24`
 - Card: `bg-site-card border border-site-border rounded-[32px] p-8 md:p-20 shadow-sm transition-colors duration-300`
 - Grid: `grid lg:grid-cols-2 gap-16 items-center`
-- H2: `text-4xl md:text-5xl font-extrabold text-site-text leading-tight tracking-tight`
-- Gradient span: "Spiritual, Character, Practical, and Academics"
 - Accent divider: `w-20 h-1.5 bg-primary rounded-full`
-- Aim items: `group flex items-start gap-5`; icon `w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center`; text `text-site-muted text-lg md:text-xl leading-relaxed font-medium`
+- Aim items: `group flex items-start gap-5`; icon `w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center text-primary`
 
-### 7.7 Programs Section (`src/components/Programs.astro`)
-
-- Section: `max-w-[1596px] mx-auto px-4 md:px-10 py-16 md:py-24`
-- Kickers: `text-primary font-bold tracking-widest uppercase text-xs md:text-sm`; H3 `text-3xl md:text-5xl font-extrabold text-site-text leading-tight`
-- View All link: `bg-primary/10 text-primary px-6 py-3 rounded-xl font-bold hover:bg-primary hover:text-white`
-- Program card (see 7.2 above)
-- Duration: `text-[10px] md:text-xs font-semibold text-site-muted uppercase tracking-wider` with `Clock` icon size={14}
-- Description: `text-site-muted leading-relaxed mb-8 text-sm md:text-base line-clamp-3 font-medium`
-
-### 7.8 Accreditations (`src/components/Accreditations.astro`)
+### 9.6 Accreditations
 
 - Section: `py-24 relative overflow-hidden bg-site-bg`
 - Decorative blob: `absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-primary/5 blur-[120px] rounded-full pointer-events-none`
-- Kickers: `text-primary font-bold tracking-widest uppercase text-sm mb-4`; H2 `text-4xl md:text-5xl font-extrabold text-site-text tracking-tight`
 - Cards: `group relative bg-site-card/40 backdrop-blur-md border border-site-border p-8 md:p-10 rounded-[32px] transition-all duration-500 hover:border-primary/30 hover:shadow-2xl hover:shadow-primary/5 hover:-translate-y-2`
 - Logo container: `w-24 h-24 mb-8 relative flex items-center justify-center` with inner `absolute inset-0 bg-primary/5 rounded-2xl blur-xl group-hover:bg-primary/10 transition-colors`
-- Image: `relative z-10 w-full h-full object-contain transition-transform duration-500 group-hover:scale-105`
 - Status pill: `px-4 py-1.5 rounded-full bg-primary/10 text-primary text-xs font-bold uppercase tracking-wider mb-4`
-- Institution name: `text-xl md:text-2xl font-bold text-site-text mb-4 leading-tight`
-- Description: `text-site-muted leading-relaxed max-w-xs`
 
-### 7.9 President Letter (`src/components/PresidentLetter.astro`)
+### 9.7 PresidentLetter
 
 - Section: `py-6 md:py-24 bg-site-card/30`
 - Main card: `bg-site-card border border-site-border rounded-[32px] md:rounded-[48px] p-6 md:p-20 shadow-2xl relative z-10`
 - Flying photo (JS-animated, lg only): `fixed pointer-events-none z-[40] overflow-hidden border-4 border-primary rounded-[24px] bg-site-bg shadow-xl hidden lg:block opacity-0 transition-opacity duration-300`
-- Start photo: `border-4 border-primary lg:border-none rounded-[24px] overflow-hidden` with glow `absolute -inset-4 bg-primary/10 rounded-[32px] blur-2xl lg:block hidden`
+- Start photo: `border-4 border-primary lg:border-none rounded-[24px] overflow-hidden`
+- Glow: `absolute -inset-4 bg-primary/10 rounded-[32px] blur-2xl lg:block hidden`
 - End photo: `w-32 md:w-44 aspect-[4/5] rounded-2xl bg-site-card/50 border-2 border-dashed border-site-border shrink-0 overflow-hidden`
-- President name (sidebar): `text-2xl font-bold text-site-text mb-0.5 text-pretty`
-- President role: `text-primary font-bold uppercase tracking-widest text-[10px]`
+- President name: `text-2xl font-bold text-site-text mb-0.5 text-pretty`
+- Role: `text-primary font-bold uppercase tracking-widest text-[10px]`
 - Pull quote: `text-site-muted italic text-sm leading-relaxed border-l-2 border-primary/20 pl-4 hidden lg:block`
-- Section kicker: `text-primary font-bold tracking-widest uppercase text-[10px] md:text-sm`
-- H4: `text-3xl md:text-5xl font-extrabold text-site-text mb-6 md:mb-10 leading-tight tracking-tight`
 - Body prose: `prose prose-base md:prose-lg dark:prose-invert max-w-none text-site-muted leading-relaxed space-y-6`
 - Sign-off: `text-3xl font-serif italic text-primary font-bold`
-- Lower card: `bg-site-border border-2 border-site-border p-6 md:p-10 rounded-[32px] md:rounded-[40px] shadow-xl relative z-30`
+- Lower card: `bg-site-bg border-2 border-site-border p-6 md:p-10 rounded-[32px] md:rounded-[40px] shadow-xl relative z-30`
 - Role chips: `text-[8px] font-bold uppercase px-2 py-1 bg-primary/5 border border-primary/10 rounded text-primary`
 
-### 7.10 Banner (`src/components/Banner.astro`)
+### 9.8 Banner
 
-- `w-full bg-[#0033A0] py-3.5 text-center px-4`
-- Text: `text-white text-sm font-medium`
-- Arrow: `→` with `ml-2 inline-block transition-transform hover:translate-x-1 cursor-default`
+```html
+<div class="w-full bg-[#0033A0] py-3.5 text-center px-4">
+  <p class="text-white text-sm font-medium">
+    Enrollment for Academic Year 2026-2027 at PBSI is now Ongoing!
+    <span class="ml-2 inline-block transition-transform hover:translate-x-1 cursor-default">→</span>
+  </p>
+</div>
+```
 
-### 7.11 MaximSection (`src/components/MaximSection.astro`)
+### 9.9 MaximSection
 
 - Section: `py-32 bg-site-card/30 border-y border-site-border backdrop-blur-sm`
-- Container: `max-w-4xl mx-auto px-6 text-center`
 - Quote: `text-xl md:text-3xl font-bold text-site-text mb-6 leading-relaxed italic`
-- Divider: `h-[1px] w-8 bg-primary/30` (both sides)
+- Divider: `h-[1px] w-8 bg-primary/30` (both sides of reference)
 - Reference: `text-primary font-black tracking-[0.3em] uppercase text-xs`
 
-### 7.12 ThemeToggle (`src/components/ThemeToggle.astro`)
+### 9.10 ThemeToggle
 
-- Button: `group relative p-2.5 rounded-xl border border-site-border bg-site-border hover:border-primary/40 transition-all flex items-center justify-center shadow-sm overflow-hidden active:scale-95`
+- Button: `group relative p-2.5 rounded-xl border border-site-border bg-site-bg hover:border-primary/40 transition-all flex items-center justify-center shadow-sm overflow-hidden active:scale-95`
 - Hover overlay: `absolute inset-0 pointer-events-none bg-primary/0 group-hover:bg-primary/5 transition-colors duration-300`
 - Moon icon (light mode): `w-5 h-5 block dark:hidden text-primary transition-all duration-500 group-hover:rotate-12 group-hover:scale-110`
 - Sun icon (dark mode): `w-5 h-5 hidden dark:block text-primary transition-all duration-500 group-hover:rotate-45 group-hover:scale-110`
 
 ---
 
-## 8. Icons
+## 10. Layout Patterns (Section Templates)
 
-### 8.1 Library
-- **Lucide** (`lucide-react` for Astro components with client-side scripts; `lucide-astro` for server-only Astro components).
-- All icons use `size` prop (numeric) and `strokeWidth` where specified.
+### 10.1 Default Section Pattern
 
-### 8.2 Icons Used & Locations
+```html
+<section class="max-w-[1596px] mx-auto px-4 md:px-10 py-16 md:py-24">
+  <div class="text-center mb-12 md:mb-16">
+    <h2 class="text-primary font-bold tracking-widest uppercase text-xs md:text-sm mb-3">Kicker</h2>
+    <h3 class="text-3xl md:text-5xl font-extrabold text-site-text leading-tight">Heading</h3>
+  </div>
+  <!-- content -->
+</section>
+```
 
-| Icon | Component(s) | Size |
-|------|--------------|------|
-| `Menu`, `X` | Navbar mobile toggle | 24 |
-| `Moon`, `Sun` | ThemeToggle | 5 (w-5/h-5 classes) |
-| `Plus` | FacultyCard CTA | 16 |
-| `GraduationCap` | Programs (MA Pastoral Studies) | 32 |
-| `BookOpen` | Programs (Bachelor Theology), About (Pillar: The Word) | 32 / 40 |
-| `Church` | Programs (Bachelor Church Ministry), About (Pillar: The Church) | 32 / 40 |
-| `Scroll` | Programs (Diploma Theological Studies) | 32 |
-| `Users` | Programs (Lay Leadership Studies), About (Pillar icon) | 32 |
-| `ArrowRight` | Programs CTA, Pricing CTA, Admission submit | 20 / 24 |
-| `Target` | About (Mission card) | 28 |
-| `Eye` | About (Vision card) | 28 |
-| `CheckCircle2` | About mission list items | 20 |
-| `SquareStack` | About (Pillar: The Trinity) | — |
-| `Heart` | About (Pillar: Jesus Christ) | — |
-| `Flame` | About (Pillar: Holy Spirit) | — |
-| `Road` | About (Pillar: Salvation) | — |
-| `PersonStanding` | About (Pillar: Resurrection) | — |
-| `Clock` | Programs duration, Contact office hours, Admission | 14 / 18 / 20 |
-| `Send` | Contact submit button | 24 |
-| `Mail`, `Phone` | Contact info cards | 28 |
-| `Calendar` | Contact office hours | 14 |
-| `UserPlus` | Admission step 1 | 20 |
-| `FileText` | Admission step 2 | 20 |
-| `CheckCircle` | Admission step 3 | 20 |
-| `ChevronDown` | Admission select dropdowns | 20 |
+### 10.2 Card Grid Pattern (3-col desktop)
 
-### 8.3 Custom Inline SVGs (non-lucide)
-- Footer location marker icon: `M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z` + circle, stroke-width 2.5, round caps/joins — used twice (Main & Annex campus).
-- About mission list check: polyline `20 6 9 17 4 12`, stroke-width 3.
-- Program page checkmarks: path `M20 6 9 17 4 12`, stroke-width 3.
-- Program page clock icon: circle + polyline, stroke-width 2.5.
-- Faculty modal close: inline SVG `X` (two lines), stroke-width 3.
-- Program detail "Q." is rendered as text `Q.` (not an icon).
+```html
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8 items-start">
+  {items.map(item => (
+    <Card {...item} />
+  ))}
+</div>
+```
 
-### 8.4 Icon Container Patterns
-- `w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center text-primary` (Excellence aims)
-- `w-12 h-12 bg-primary/10 rounded-2xl ... text-primary` (PillarCard)
-- `w-14 h-14 bg-primary/10 rounded-2xl ... text-primary` (MissionVisionCard)
-- `w-24 h-24 ... rounded-2xl` with inner `bg-primary/5 rounded-2xl blur-xl` (Accreditations logo badge)
-- `text-primary bg-site-border w-14 h-14 ... rounded-2xl border border-site-border` (Programs hero section)
+### 10.3 Two-Column Split Pattern (image left, content right)
+
+Used in PresidentLetter and About video sections. Parent: `flex flex-col lg:flex-row gap-6 md:gap-16 items-start`.
+
+### 10.4 Hero Pattern
+
+- Negative top margin `-mt-[116px]` to tuck behind sticky navbar
+- `pt-48 pb-40` for generous vertical space
+- Centered text with kicker → gradient H1 → subhead → dual CTAs
 
 ---
 
-## 9. Gradients, Glows & Decorative Effects
-
-### 9.1 Gradients
-
-| Gradient | Classes | Usage |
-|----------|---------|-------|
-| Primary → Primary-light (L→R) | `bg-gradient-to-r from-primary to-primary-light` | Hero H1 ("Seminary Inc."), Excellence H2 span, About H1 spans ("Foundations", "Journey"), Pricing H1 span ("Financial Transparency") |
-| Primary/10 → transparent (TL→BR) | `bg-gradient-to-tr from-primary/10 to-transparent` | About video decorative glow |
-| Primary/5 → transparent (top→bottom) | `bg-gradient-to-b from-primary/5 to-transparent` | Pricing CTA card bottom fade |
-
-### 9.2 Blur / Glass Blobs
-
-| Effect | Classes | Usage |
-|--------|---------|-------|
-| Backdrop blur sm | `backdrop-blur-sm` | Hero kicker, Maxim section |
-| Backdrop blur md | `backdrop-blur-md` | Navbar, contact info cards, Accreditations cards |
-| Backdrop blur xl | `backdrop-blur-xl` | Mobile menu, contact form card, faculty modal |
-| Backdrop blur 2xl | `backdrop-blur-2xl` | President photo start glow |
-| Blur 120px | `blur-[120px] w-[500px] h-[500px] bg-primary/5 rounded-full` | Accreditations decorative blob |
-| Blur 80px / 120px | `blur-[80px] md:blur-[120px] bg-primary/10 rounded-full` | Admission top-right decorative blob |
-| Blur 3xl | `blur-3xl bg-white/10 rounded-full` | Pricing scholarship, contact panel, admission panel decorative corners |
-| Blur 2xl | `blur-2xl bg-primary/10 rounded-[32px]` | President photo glow |
-| Blur xl | `blur-xl bg-primary/5 rounded-2xl` | Accreditations status badge glow |
-
-### 9.3 Opacity Backgrounds (Glassmorphism)
-- `bg-site-card/40`, `bg-site-card/50`, `bg-site-card/60`, `bg-site-card/90`, `bg-site-card/30`, `bg-site-card/10`
-- `bg-primary/5`, `bg-primary/10`, `bg-primary/20`, `bg-primary/30`, `bg-primary/40`, `bg-primary/50`
-- `bg-site-border/60`, `bg-site-border/50`, `bg-site-border/20`
-
----
-
-## 10. Borders, Dividers & Rules
-
-| Style | Classes | Usage |
-|-------|---------|-------|
-| Standard border | `border border-site-border` | Cards, navbar, footer, inputs, selects |
-| Double border | `border-2 border-site-border` | Hero secondary CTA |
-| Top border | `border-t border-site-border` | Footer, pricing table header |
-| Bottom border | `border-b border-site-border` | Navbar image area, pricing rows, program detail header |
-| Left border | `border-l-2 border-primary/20` | President pull quote |
-| Left border (pricing table) | `border-l-4 border-white/30` | Pricing scholarship quote |
-| Dashed border | `border-2 border-dashed border-site-border` | President end photo state |
-| Divider Y | `divide-y divide-site-border` | Pricing mobile list |
-| Accent bar | `h-1 w-12 bg-primary` | Footer under institution name |
-| Accent bar (section) | `w-20 h-2 bg-primary rounded-full` | About / Contact section headings |
-| Hairline divider | `h-[1px] w-8 bg-primary/30` | Maxim section reference divider |
-| Section divider | `h-[2px] w-8 md:w-12 bg-primary/20` | About section ("Statement of Faith") |
-| Flex-grow rule | `h-1 flex-grow bg-site-border rounded-full opacity-50` | Program objectives / curriculum headings |
-| Input border | `border border-site-border` + `focus:border-primary` + `focus:ring-4 focus:ring-primary/5` | Contact & Admission forms |
-| Select appearance | `appearance-none` + custom `ChevronDown` icon | Admission dropdowns |
-
----
-
-## 11. Forms
+## 11. Forms System
 
 ### 11.1 Shared Input Style (Contact & Admission)
-```
-w-full bg-site-bg/60 border border-site-border rounded-2xl
-px-6 py-4 md:py-5 text-site-text font-bold
-focus:border-primary outline-none transition-all
-placeholder:opacity-20
-```
-- Labels: `text-[11px] font-black uppercase tracking-[0.2em] text-primary ml-1`
-- Placeholders: example text ("Juan Dela Cruz", "juan@email.com", "How can we help?")
-- Selects: same input style + `pl-6 pr-12` + absolute `ChevronDown` icon at `right-4 top-1/2 -translate-y-1/2 pointer-events-none text-primary`
-- Select options (inline `<style>` in admission.astro): `background-color: #ffffff; color: #0f172a; font-weight: 600;`
 
-### 11.2 Submit Button (Shared)
+```html
+<input
+  type="text"
+  name="name"
+  required
+  placeholder="Juan Dela Cruz"
+  class="w-full bg-site-bg/60 border border-site-border rounded-2xl px-6 py-4 md:py-5 text-site-text font-bold focus:border-primary outline-none transition-all placeholder:opacity-20"
+/>
 ```
-bg-primary text-white px-12 md:px-14 py-5 md:py-6 rounded-2xl
-font-black text-lg md:text-xl flex items-center justify-center gap-4
-hover:shadow-[0_20px_50px_rgba(var(--primary-rgb),0.4)] transition-all
-hover:-translate-y-1 active:scale-95 group uppercase italic tracking-tight
-```
-Contains `Send` or `ArrowRight` lucide icon with hover translate.
 
-### 11.3 Form Endpoints
-- Both Contact and Admission POST to `https://api.web3forms.com/submit` with hidden `access_key`, `botcheck` checkbox, and `subject` fields.
+- Label: `text-[11px] font-black uppercase tracking-[0.2em] text-primary ml-1`
+- Wrapper: `flex flex-col gap-3`
+- Grid: `grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8`
+
+### 11.2 Select Dropdowns (Admission)
+
+```html
+<select name="sex" required class="w-full bg-site-bg/60 border border-site-border rounded-2xl pl-6 pr-12 py-4 md:py-5 text-site-text font-bold focus:border-primary focus:ring-4 focus:ring-primary/5 outline-none appearance-none cursor-pointer transition-all">
+  <option value="" disabled selected>Select...</option>
+</select>
+<div class="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-primary">
+  <ChevronDown size={20} />
+</div>
+```
+
+Inline `<style>` in `admission.astro`:
+```css
+select { background-image: none; }
+option { background-color: #ffffff; color: #0f172a; font-weight: 600; }
+```
+
+### 11.3 Submit Button (Shared)
+
+```html
+<button type="submit" class="w-full md:w-auto bg-primary text-white px-10 md:px-14 py-5 md:py-6 rounded-2xl font-black text-lg md:text-xl flex items-center justify-center gap-4 hover:shadow-[0_20px_60px_rgba(var(--primary-rgb),0.5)] transition-all hover:-translate-y-1 active:scale-95 group uppercase italic tracking-tighter shadow-xl shadow-primary/20">
+  Submit Application
+  <ArrowRight size={24} className="group-hover:translate-x-2 transition-transform" />
+</button>
+```
+
+### 11.4 Form Endpoints
+
+Both Contact and Admission POST to `https://api.web3forms.com/submit` with hidden fields:
+- `access_key` = `3e0eb43a-715e-4a1f-ab43-6b729196b441`
+- `botcheck` (hidden checkbox)
+- `subject` (page-specific)
 
 ---
 
-## 12. Responsive Breakpoints (Tailwind defaults)
+## 12. Icons System
 
-| Breakpoint | Value | Notable usage |
-|------------|-------|---------------|
-| `sm` | 640px | Faculty grid 2-col |
-| `md` | 768px | Most `md:` overrides (padding, text sizes, grid columns) |
-| `lg` | 1024px | Navbar desktop links, 3-col grids, sticky president sidebar, flying photo |
-| (no `xl` overrides found) | — | — |
+### 12.1 Library
+
+- **Lucide** — `lucide-react` for components with client-side `<script>`; `lucide-astro` for server-only Astro components.
+- All icons use numeric `size` prop and optional `strokeWidth`.
+
+### 12.2 Icon Inventory & Locations
+
+| Icon | Component(s) | Size | Notes |
+|------|--------------|------|-------|
+| `Menu`, `X` | Navbar mobile toggle | 24 | |
+| `Moon`, `Sun` | ThemeToggle | 5 (w-5/h-5) | `stroke-width={2}` |
+| `Plus` | FacultyCard CTA | 16 | Rotates on hover |
+| `GraduationCap` | Programs (MA Pastoral Studies) | 32 | |
+| `BookOpen` | Programs (Bachelor Theology), About (Pillar: The Word) | 32 / 40 | |
+| `Church` | Programs (Bachelor Church Ministry), About (Pillar: The Church) | 32 / 40 | |
+| `Scroll` | Programs (Diploma Theological Studies) | 32 | |
+| `Users` | Programs (Lay Leadership Studies), About (Pillar icon) | 32 | |
+| `ArrowRight` | Programs CTA, Pricing CTA, Admission submit | 20 / 24 | |
+| `Target` | About (Mission card) | 28 | |
+| `Eye` | About (Vision card) | 28 | |
+| `CheckCircle2` | About mission list items | 20 | |
+| `SquareStack` | About (Pillar: The Trinity) | — | |
+| `Heart` | About (Pillar: Jesus Christ) | — | |
+| `Flame` | About (Pillar: Holy Spirit) | — | |
+| `Road` | About (Pillar: Salvation) | — | |
+| `PersonStanding` | About (Pillar: Resurrection) | — | |
+| `Clock` | Programs duration, Contact office hours, Admission | 14 / 18 / 20 | |
+| `Send` | Contact submit button | 24 | |
+| `Mail`, `Phone` | Contact info cards | 28 | |
+| `Calendar` | Contact office hours | 14 | |
+| `UserPlus` | Admission step 1 | 20 | |
+| `FileText` | Admission step 2 | 20 | |
+| `CheckCircle` | Admission step 3 | 20 | |
+| `ChevronDown` | Admission select dropdowns | 20 | Custom absolute overlay |
+
+### 12.3 Custom Inline SVGs (non-lucide)
+
+- **Footer location marker:** `M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z` + circle, stroke-width 2.5, round caps/joins. Used twice (Main & Annex campus).
+- **About mission list check:** polyline `20 6 9 17 4 12`, stroke-width 3.
+- **Program page checkmarks:** path `M20 6 9 17 4 12`, stroke-width 3.
+- **Program page clock icon:** circle + polyline, stroke-width 2.5.
+- **Faculty modal close:** inline SVG `X` (two lines), stroke-width 3.
+- **Program detail "Q."** is rendered as text `Q.` (not an icon).
+
+### 12.4 Icon Container Patterns
+
+| Pattern | Classes | Usage |
+|---------|---------|-------|
+| Small aim icon | `w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center text-primary` | Excellence aims |
+| Pillar icon | `w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center text-primary mb-4 group-hover:scale-110 transition-transform duration-500` | PillarCard |
+| Mission/Vision icon | `w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center text-primary group-hover:scale-110 transition-transform duration-500 shrink-0` | MissionVisionCard |
+| Accreditations logo | `w-24 h-24 ... rounded-2xl` with inner `bg-primary/5 rounded-2xl blur-xl` | Accreditations |
+| Programs hero icon | `text-primary bg-site-bg w-14 h-14 ... rounded-2xl border border-site-border overflow-hidden` | Programs section |
+| Programs index icon | `w-20 h-20 shrink-0 aspect-square ... rounded-[24px] border border-site-border` | Programs listing page |
 
 ---
 
-## 13. Interactions & Motion
+## 13. Interactions & Animation Library
 
 | Effect | Classes / JS | Usage |
 |--------|--------------|-------|
-| Opacity transition | `transition-colors duration-300` | Body theme switch, cards |
+| Color transition | `transition-colors duration-300` | Body theme switch, card borders |
 | Transform transition | `transition-transform duration-500` / `duration-700` | Card hover lifts, faculty image scale, icon scale |
 | Hover lift | `hover:-translate-y-1` / `hover:-translate-y-2` | Buttons, cards |
 | Active press | `active:scale-95` | All CTAs |
@@ -646,10 +812,72 @@ Contains `Send` or `ArrowRight` lucide icon with hover translate.
 | Flying photo | JS `requestAnimationFrame` scroll-driven translate/scale/border-radius animation | PresidentLetter (lg only) |
 | Theme switch | `transition-colors duration-300` on CSS variables | Global light/dark |
 | Hover opacity | `hover:opacity-70`, `hover:opacity-80` | Footer links, logo |
+| Backdrop blur | `backdrop-blur-sm` / `md` / `xl` / `2xl` | Hero kicker, navbar, mobile menu, contact cards, accreditations |
 
 ---
 
-## 14. Pages Overview
+## 14. Dark Mode System
+
+### 14.1 Mechanics
+
+- **Default theme:** light (hardcoded fallback in `Layout.astro`).
+- **Preference storage:** `localStorage` key `"theme"` (`"light"` \| `"dark"`).
+- **`Layout.astro` inline script:** runs on load, reads localStorage, adds/removes `dark` class on `<html>`, syncs back to localStorage.
+- **`ThemeToggle.astro`:** lucide `Moon` / `Sun` toggles the `dark` class and persists choice; re-initializes on `astro:after-swap`.
+
+### 14.2 Token Swap Summary
+
+| Token | Light | Dark |
+|-------|-------|------|
+| `--brand-primary` | `#0033A0` | `#3B82F6` |
+| `--bg-color` | `#F7F7F8` | `#0F172A` |
+| `--text-color` | `#1A1A1A` | `#F8FAFC` |
+| `--card-bg` | `#FFFFFF` | `#1E293B` |
+| `--border-color` | `#F1F1F3` | `#334155` |
+| `--muted-text` | `#59595A` | `#94A3B8` |
+
+### 14.3 Dark Mode Rules for New Components
+
+1. **Never hardcode** `#0033A0`, `#F7F7F8`, `#FFFFFF`, `#1A1A1A`, etc. in new components.
+2. Always use semantic classes: `text-primary`, `bg-site-card`, `border-site-border`, `text-site-text`, `text-site-muted`.
+3. For opacity tints, use `bg-primary/10`, `text-primary/60`, `border-site-border/60`, etc. (these adapt via CSS variables).
+4. Exception: intentional dark-mode-only accents like `text-white` / `bg-white/10` (used in pricing scholarship card, contact panel).
+
+---
+
+## 15. Responsive Behavior Matrix
+
+| Breakpoint | Value | Notable usage |
+|------------|-------|---------------|
+| `sm` | 640px | Faculty grid 2-col |
+| `md` | 768px | Most `md:` overrides (padding, text sizes, grid columns, form layouts) |
+| `lg` | 1024px | Navbar desktop links, 3-col grids, sticky president sidebar, flying photo |
+| `xl` | — | No `xl` overrides found in codebase |
+
+**Common responsive patterns:**
+- `px-4 md:px-10` — container padding
+- `text-base md:text-lg` / `text-xl md:text-2xl` — type scaling
+- `grid-cols-1 sm:grid-cols-2 lg:grid-cols-3` — card grids
+- `hidden lg:flex` / `lg:hidden` — show/hide by breakpoint
+- `md:w-[calc(50%-1rem)] lg:w-[calc(33.333%-1.5rem)]` — card width overrides
+- `flex flex-col sm:flex-row` — stack on mobile, row on desktop
+
+---
+
+## 16. Z-Index & Layering
+
+| Value | Usage |
+|-------|-------|
+| `z-10` | Default content layer (hero container, footer inner) |
+| `z-50` | Navbar (sticky header) |
+| `z-[40]` | President flying photo |
+| `z-[100]` | Faculty modal backdrop |
+| `-z-10` | Decorative background blobs (behind content) |
+| `-inset-4` / `absolute inset-0` | Glow overlays and decorative blobs |
+
+---
+
+## 17. Page-by-Page Breakdown
 
 | Route | File | Main Sections / Components |
 |-------|------|---------------------------|
@@ -665,9 +893,10 @@ Contains `Send` or `ArrowRight` lucide icon with hover translate.
 
 ---
 
-## 15. Content Data Structure
+## 18. Content Data Structures
 
-### 15.1 Programs (`src/content/programs/*.json`)
+### 18.1 Programs (`src/content/programs/*.json`)
+
 Schema (`src/content.config.ts`): `title`, `type`, `duration`, `description`, `fullDescription`, `objectives[]`, `curriculum[][{semester, courses[]}]`, `admissionRequirements[]`, `careerPaths[]`.
 
 Five programs:
@@ -677,50 +906,69 @@ Five programs:
 4. `diploma-theological-studies` — icon: Scroll
 5. `lay-leadership-studies` — icon: Users
 
-### 15.2 Faculty (`src/data/faculty.ts`)
+### 18.2 Faculty (`src/data/faculty.ts`)
+
 Interface: `id`, `name`, `role`, `image`, `degrees[]`, `education[][{degree, school?}]`, `specialization`, `titles`.
 11 faculty members with photos in `public/images/faculty/`.
 
 ---
 
-## 16. AI Agent Implementation Guidelines
+## 19. Implementation Guidelines for AI Agents
 
-### 16.1 Adding a New Color
+### 19.1 Adding a New Color
+
 1. Add CSS variable to `:root` and `.dark` in `src/styles/global.css`.
 2. Add corresponding `--color-site-*` mapping in the `@theme` block if you want a semantic Tailwind class.
-3. Optionally add to `tailwind.config.mjs` `theme.extend.colors` for raw Tailwind classes (e.g., `sb-orange`).
+3. Optionally add to `tailwind.config.mjs` `theme.extend.colors` for raw Tailwind classes.
 
-### 16.2 Creating a New Card
+### 19.2 Creating a New Card
+
 Follow the `FacultyCard` / `PillarCard` pattern:
 - Wrapper: `bg-site-card border border-site-border rounded-[32px] ... transition-all duration-300 group`
 - Hover: `hover:border-primary/20` (+ optional `hover:shadow-xl hover:shadow-primary/10`)
 - Image: `object-cover` with `group-hover:scale-105`
 - Use semantic classes (`text-site-text`, `text-site-muted`, `bg-primary/10`, `text-primary`) — never hardcode hex values.
 
-### 16.3 Creating a New Button
-- Primary: `bg-primary text-white ... rounded-2xl ... hover:-translate-y-1 hover:shadow-2xl hover:shadow-primary/40 active:scale-95`
-- Secondary: `bg-site-card/60 backdrop-blur-sm text-site-text border-2 border-site-border ... rounded-2xl ...`
+### 19.3 Creating a New Button
+
+- **Primary:** `bg-primary text-white ... rounded-2xl ... hover:-translate-y-1 hover:shadow-2xl hover:shadow-primary/40 active:scale-95`
+- **Secondary:** `bg-site-card/60 backdrop-blur-sm text-site-text border-2 border-site-border ... rounded-2xl ...`
 - Always include `transition-all duration-300` and `active:scale-95`.
 
-### 16.4 Dark Mode
-All component colors must reference CSS variables (`--brand-primary`, `--bg-color`, etc.) or Tailwind semantic classes (`text-primary`, `bg-site-card`, etc.). Do not hardcode `#0033A0` or `#F7F7F8` in new components except where existing precedent does (e.g., `Banner` uses `bg-[#0033A0]` intentionally).
+### 19.4 Dark Mode
 
-### 16.5 Icons
+All component colors must reference CSS variables or Tailwind semantic classes. Do not hardcode hex values except where existing precedent does (e.g., `Banner` uses `bg-[#0033A0]` intentionally).
+
+### 19.5 Icons
+
 Import from `lucide-react` (components with `<script>`) or `lucide-astro` (server-only Astro). Use numeric `size` prop. Wrap in `bg-primary/10 rounded-2xl` containers for consistency.
 
-### 16.6 Typography Conventions
+### 19.6 Typography Conventions
+
 - Section kickers: `text-primary font-bold uppercase tracking-widest text-[10px]`
 - Page H1s: `font-black` or `font-extrabold`, `tracking-tighter`, often with gradient span and `text-outline` (-webkit-text-stroke) for contact/admission.
 - Body: `font-medium`, `text-site-muted`, `leading-relaxed`.
 
-### 16.7 Spacing Conventions
+### 19.7 Spacing Conventions
+
 - Section containers: `max-w-[1596px] mx-auto px-4 md:px-10` (hero-scale) or `max-w-[1200px] mx-auto px-6` (content pages).
 - Section py: `py-16` to `py-24` typical; hero `pt-48 pb-40`.
 - Grid gaps: `gap-6` to `gap-8`; cards `items-stretch h-full` for equal heights.
 
 ---
 
-## 17. File Reference Index
+## 20. Accessibility Notes
+
+- Theme preference persisted in `localStorage` and applied to `<html class="dark">`.
+- Navbar mobile menu toggles `data-state="open\|closed"` and traps focus via click handlers (no focus-trap implementation present).
+- Forms use `required` attributes and associated labels.
+- All images have `alt` attributes.
+- Contrast relies on `text-site-text` on `bg-site-card` / `bg-site-bg` pairs; dark mode swaps tokens automatically.
+- No `prefers-reduced-motion` handling found; hover transforms and transitions are applied unconditionally.
+
+---
+
+## 21. File Reference Index
 
 | File | Role |
 |------|------|
@@ -753,4 +1001,4 @@ Import from `lucide-react` (components with `<script>`) or `lucide-astro` (serve
 
 ---
 
-*End of design document. This file should be treated as the source of truth for any AI agent modifying the PBSI website's visual layer.*
+*End of design document. This file is the authoritative visual reference for the PBSI website. When in doubt, copy existing class strings verbatim rather than inventing new values.*
