@@ -1,6 +1,5 @@
 import React from 'react';
 import {
-  BrowserRouter as Router,
   Routes,
   Route,
   Navigate,
@@ -71,68 +70,66 @@ const App = () => {
   if (isLoading) return null;
 
   return (
-    <Router>
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/" element={<Home />} />
-        <Route element={<RoleLayout />}>
-          <Route index element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-          <Route
-            path="dashboard"
-            element={<ProtectedRoute><Dashboard /></ProtectedRoute>}
-          />
-          <Route
-            path="students"
-            element={<ProtectedRoute><Students /></ProtectedRoute>}
-          />
-          <Route
-            path="students/:id"
-            element={<ProtectedRoute><StudentDetail /></ProtectedRoute>}
-          />
-          <Route
-            path="courses"
-            element={<ProtectedRoute><Courses /></ProtectedRoute>}
-          />
-          <Route
-            path="courses/:id"
-            element={<ProtectedRoute><CourseDetail /></ProtectedRoute>}
-          />
-          <Route
-            path="assignments"
-            element={<ProtectedRoute><Assignments /></ProtectedRoute>}
-          />
-          <Route
-            path="quizzes"
-            element={<ProtectedRoute><Quizzes /></ProtectedRoute>}
-          />
-          <Route
-            path="attendance"
-            element={<ProtectedRoute><Attendance /></ProtectedRoute>}
-          />
-          <Route
-            path="timetable"
-            element={<ProtectedRoute><Timetable /></ProtectedRoute>}
-          />
-          <Route
-            path="grades"
-            element={<ProtectedRoute><Grades /></ProtectedRoute>}
-          />
-          <Route
-            path="discussions"
-            element={<ProtectedRoute><Discussions /></ProtectedRoute>}
-          />
-          <Route
-            path="notifications"
-            element={<ProtectedRoute><Notifications /></ProtectedRoute>}
-          />
-          <Route
-            path="audit-logs"
-            element={<AdminOnly><AuditLogs /></AdminOnly>}
-          />
-        </Route>
-        <Route path="*" element={<NotFound />} />
-      </Routes>
-    </Router>
+    <Routes>
+      <Route path="/login" element={<Login />} />
+      <Route path="/" element={<Home />} />
+      <Route element={<RoleLayout />}>
+        <Route index element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+        <Route
+          path="dashboard"
+          element={<ProtectedRoute><Dashboard /></ProtectedRoute>}
+        />
+        <Route
+          path="students"
+          element={<ProtectedRoute><Students /></ProtectedRoute>}
+        />
+        <Route
+          path="students/:id"
+          element={<ProtectedRoute><StudentDetail /></ProtectedRoute>}
+        />
+        <Route
+          path="courses"
+          element={<ProtectedRoute><Courses /></ProtectedRoute>}
+        />
+        <Route
+          path="courses/:id"
+          element={<ProtectedRoute><CourseDetail /></ProtectedRoute>}
+        />
+        <Route
+          path="assignments"
+          element={<ProtectedRoute><Assignments /></ProtectedRoute>}
+        />
+        <Route
+          path="quizzes"
+          element={<ProtectedRoute><Quizzes /></ProtectedRoute>}
+        />
+        <Route
+          path="attendance"
+          element={<ProtectedRoute><Attendance /></ProtectedRoute>}
+        />
+        <Route
+          path="timetable"
+          element={<ProtectedRoute><Timetable /></ProtectedRoute>}
+        />
+        <Route
+          path="grades"
+          element={<ProtectedRoute><Grades /></ProtectedRoute>}
+        />
+        <Route
+          path="discussions"
+          element={<ProtectedRoute><Discussions /></ProtectedRoute>}
+        />
+        <Route
+          path="notifications"
+          element={<ProtectedRoute><Notifications /></ProtectedRoute>}
+        />
+        <Route
+          path="audit-logs"
+          element={<AdminOnly><AuditLogs /></AdminOnly>}
+        />
+      </Route>
+      <Route path="*" element={<NotFound />} />
+    </Routes>
   );
 };
 

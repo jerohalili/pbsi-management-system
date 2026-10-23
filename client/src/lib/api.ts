@@ -1,6 +1,8 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 
-export const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+const rawApiUrl = import.meta.env.VITE_API_URL || '/api';
+// Normalize so baseURL always ends with /api (handles both with and without trailing /api)
+export const API_BASE_URL = rawApiUrl.replace(/\/+$/, '').replace(/\/api$/, '') + '/api';
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
