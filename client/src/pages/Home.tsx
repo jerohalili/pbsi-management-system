@@ -1,7 +1,8 @@
-import useAuth from '@/hooks/useAuth.ts';
+import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import useAuth from '@/hooks/useAuth.ts';
 import { Button } from '@/components/ui/button.tsx';
-import { GraduationCap, Users, BookOpen, Award, User } from 'lucide-react';
+import { GraduationCap, Users, BookOpen, Award } from 'lucide-react';
 
 export default function Home() {
   const { user, isAuthenticated, isLoading } = useAuth();
@@ -72,28 +73,17 @@ export default function Home() {
     );
   }
 
-  // Authenticated — show welcome dashboard
+  // Authenticated — auto-redirect to role dashboard
   const role = (user?.role as string) ?? 'student';
-  const target =
-    role === 'admin' ? '/students' : role === 'teacher' ? '/courses' : '/dashboard';
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      const target =
+        role === 'admin' ? '/students' : role === 'teacher' ? '/courses' : '/dashboard';
+      navigate(target);
+    }
+  }, [user, isAuthenticated, navigate, role]);
 
-  return (
-    <div className="min-h-screen w-full bg-site-bg px-4 py-12">
-      <div className="max-w-5xl mx-auto text-center">
-        <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-primary/10 text-primary mb-6">
-          <User className="w-6 h-6" />
-        </div>
-        <h1 className="text-3xl font-bold text-site-text mb-2">Welcome back, {user?.email}</h1>
-        <p className="text-site-muted mb-10">Role: {role}</p>
-        <Button
-          onClick={() => navigate(target)}
-          className="bg-primary text-white hover:bg-blue-700 px-8 py-3"
-        >
-          Go to Dashboard
-        </Button>
-      </div>
-    </div>
-  );
+  return null;
 }
 
 function FeatureCard({ icon, title, desc }: { icon: React.ReactNode; title: string; desc: string }) {
