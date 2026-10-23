@@ -19,6 +19,16 @@ import Home from '@/pages/Home.tsx';
 import NotFound from '@/pages/NotFound.tsx';
 import Students from '@/pages/Students.tsx';
 import StudentDetail from '@/pages/StudentDetail.tsx';
+import Courses from '@/pages/Courses.tsx';
+import CourseDetail from '@/pages/CourseDetail.tsx';
+import Assignments from '@/pages/Assignments.tsx';
+import Quizzes from '@/pages/Quizzes.tsx';
+import Attendance from '@/pages/Attendance.tsx';
+import Timetable from '@/pages/Timetable.tsx';
+import Grades from '@/pages/Grades.tsx';
+import Discussions from '@/pages/Discussions.tsx';
+import Notifications from '@/pages/Notifications.tsx';
+import AuditLogs from '@/pages/AuditLogs.tsx';
 
 type Role = 'admin' | 'teacher' | 'student' | 'parent';
 
@@ -58,6 +68,18 @@ const App = () => {
         <Route path="dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
         <Route path="students" element={<ProtectedRoute><Students /></ProtectedRoute>} />
         <Route path="students/:id" element={<ProtectedRoute><StudentDetail /></ProtectedRoute>} />
+        <Route path="courses" element={<ProtectedRoute><Courses /></ProtectedRoute>} />
+        <Route path="courses/new" element={<ProtectedRoute><CourseDetail /></ProtectedRoute>} />
+        <Route path="courses/:id" element={<ProtectedRoute><CourseDetail /></ProtectedRoute>} />
+        <Route path="courses/:id/modules/new" element={<ProtectedRoute><CourseDetail /></ProtectedRoute>} />
+        <Route path="assignments" element={<ProtectedRoute><Assignments /></ProtectedRoute>} />
+        <Route path="quizzes" element={<ProtectedRoute><Quizzes /></ProtectedRoute>} />
+        <Route path="attendance" element={<ProtectedRoute><Attendance /></ProtectedRoute>} />
+        <Route path="timetable" element={<ProtectedRoute><Timetable /></ProtectedRoute>} />
+        <Route path="grades" element={<ProtectedRoute><Grades /></ProtectedRoute>} />
+        <Route path="discussions" element={<ProtectedRoute><Discussions /></ProtectedRoute>} />
+        <Route path="notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
+        <Route path="audit-logs" element={<ProtectedRoute><AuditLogs /></ProtectedRoute>} />
       </Route>
       <Route path="*" element={<NotFound />} />
     </Routes>

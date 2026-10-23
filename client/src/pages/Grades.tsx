@@ -1,7 +1,8 @@
-import { useGet } from '@/hooks/useApi.ts';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card.tsx';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table.tsx';
-import { Award } from 'lucide-react';
+import useAuth from '@/hooks/useAuth.ts';
+import { useEffect, useState } from 'react';
+
+import api from '@/lib/api.ts';
+import { useToast } from '@/components/ui/toast.tsx';
 
 interface Grade {
   id: string;
@@ -21,97 +22,104 @@ interface GPA {
 }
 
 export default function GradesPage() {
-  const { data, isLoading } = useGet<{ grades: Grade[] }>(
-    ['grades'],
-    '/api/grades',
-  );
-  const { data: gpaData } = useGet<{ gpa: GPA }>(
-    ['gpa'],
-    '/api/grades/gpa/me',
-    { enabled: false },
-  );
+  const { isAuthenticated, isLoading } = useAuth();
+  const { toast } = useToast();
+  const [grades, setGrades] = useState<Grade[]>([]);
+  const [gpa, setGPA] = useState<GPA | null>(null);
 
-  const grades = data?.grades ?? [];
-  const gpa = gpaData?.gpa;
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    fetchGrades();
+  }, [isAuthenticated]);
 
-  return (
-    <div className="space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold">Grades &amp; GPA</h1>
-          <p className="text-muted-foreground">View your grades and cumulative GPA.</p>
+  async function fetchGrades() {
+    try {
+      const [gRes, gpaRes] = await Promise.all([
+        api.get<{ grades: Grade[] }>('/api/grades'),
+        api.get<{ gpa: GPA }>('/api/grades/gpa/me'),
+      ]);
+      setGrades(gRes.data.grades);
+      setGPA(gpaRes.data.gpa);
+    } catch (err: any) {
+      toast({ title: 'Failed to load grades', description: err.message, variant: 'destructive' });
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen w-full bg-site-bg flex items-center justify-center px-4">
+        <div className="flex flex-col items-center gap-2 animate-pulse">
+          <div className="w-10 h-10 rounded-full bg-site-border"></div>
+          <p className="text-site-muted text-sm">Loading…</p>
         </div>
       </div>
+    );
+  }
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Award className="w-5 h-5" /> Cumulative GPA
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="flex items-center justify-between">
-            <div className="text-4xl font-bold">
-              {gpa?.cumulative_gpa?.toFixed(2) ?? 'N/A'}
+  if (!isAuthenticated) return null;
+
+  return (
+    <div className="min-h-screen w-full bg-site-bg px-4 py-12">
+      <div className="max-w-5xl mx-auto">
+        <div className="mb-8">
+          <h1 className="text-2xl font-bold text-site-text">Grades &amp; GPA</h1>
+          <p className="text-site-muted">View your grades and cumulative GPA.</p>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2 mb-8">
+          <div className="rounded-xl border border-site-border bg-site-card p-6 shadow-sm">
+            <h3 className="font-bold text-site-text mb-4">Cumulative GPA</h3>
+            <div className="flex items-center justify-between">
+              <div className="text-4xl font-bold text-site-text">
+                {gpa?.cumulative_gpa?.toFixed(2) ?? 'N/A'}
+              </div>
+              <div className="text-right">
+                <div className="text-xs text-site-muted">Total Assessments</div>
+                <div className="text-sm font-medium">{gpa?.total_assessments ?? 0}</div>
+              </div>
             </div>
-            <div className="text-right">
-              <div className="text-xs text-muted-foreground">Total Assessments</div>
-              <div className="text-sm font-medium">{gpa?.total_assessments ?? 0}</div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Term Summary</CardTitle>
-          </CardHeader>
-          <CardContent className="text-muted-foreground text-sm">
-            Term grades are calculated automatically from assignments and quizzes.
-          </CardContent>
-        </Card>
+          </div>
+          <div className="rounded-xl border border-site-border bg-site-card p-6 shadow-sm">
+            <h3 className="font-bold text-site-text mb-4">Term Summary</h3>
+            <p className="text-site-muted text-sm">
+              Term grades are calculated automatically from assignments and quizzes.
+            </p>
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-site-border bg-site-card overflow-hidden">
+          <table className="w-full text-left">
+            <thead>
+              <tr className="border-b border-site-border">
+                <th className="px-6 py-4 text-sm font-bold text-site-muted">Course</th>
+                <th className="px-6 py-4 text-sm font-bold text-site-muted">Assessment</th>
+                <th className="px-6 py-4 text-sm font-bold text-site-muted">Type</th>
+                <th className="px-6 py-4 text-sm font-bold text-site-muted">Score</th>
+                <th className="px-6 py-4 text-sm font-bold text-site-muted">Term</th>
+              </tr>
+            </thead>
+            <tbody>
+              {grades.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-6 py-8 text-center text-site-muted">
+                    No grades recorded yet.
+                  </td>
+                </tr>
+              ) : (
+                grades.map((g) => (
+                  <tr key={g.id} className="border-b border-site-border">
+                    <td className="px-6 py-4 font-medium text-site-text">{g.course_name}</td>
+                    <td className="px-6 py-4 text-sm text-site-muted">#{g.assessment_id.slice(0, 6)}</td>
+                    <td className="px-6 py-4 text-sm text-site-muted">{g.assessment_type}</td>
+                    <td className="px-6 py-4 font-medium text-site-text">{g.score}</td>
+                    <td className="px-6 py-4 text-sm text-site-muted">{g.term}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Gradebook</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="p-4 text-center text-muted-foreground">Loading grades...</div>
-          ) : (
-            <div className="rounded-xl border border-input">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Course</TableHead>
-                    <TableHead className="w-32">Assessment</TableHead>
-                    <TableHead className="w-20">Type</TableHead>
-                    <TableHead className="w-20">Score</TableHead>
-                    <TableHead className="w-24">Term</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {grades.map((g) => (
-                    <TableRow key={g.id}>
-                      <TableCell className="font-medium">{g.course_name}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground">#{g.assessment_id.slice(0, 6)}</TableCell>
-                      <TableCell className="text-muted-foreground">{g.assessment_type}</TableCell>
-                      <TableCell className="font-medium">{g.score}</TableCell>
-                      <TableCell className="text-muted-foreground text-xs">{g.term}</TableCell>
-                    </TableRow>
-                  ))}
-                  {grades.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={5} className="text-center text-muted-foreground py-4">
-                        No grades recorded yet.
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
     </div>
   );
 }

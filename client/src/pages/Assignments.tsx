@@ -1,8 +1,8 @@
-import { useGet } from '@/hooks/useApi.ts';
-import { Button } from '@/components/ui/button.tsx';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table.tsx';
-import { Plus, Clock } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import useAuth from '@/hooks/useAuth.ts';
+import { useEffect, useState } from 'react';
+import { FileText, Clock } from 'lucide-react';
+import api from '@/lib/api.ts';
+import { useToast } from '@/components/ui/toast.tsx';
 
 interface Assignment {
   id: string;
@@ -15,70 +15,85 @@ interface Assignment {
 }
 
 export default function AssignmentsPage() {
-  const { data, isLoading } = useGet<{ assignments: Assignment[] }>(
-    ['assignments'],
-    '/api/assignments',
-  );
+  const { isAuthenticated, isLoading } = useAuth();
+  const { toast } = useToast();
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
 
-  const assignments = data?.assignments ?? [];
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    fetchAssignments();
+  }, [isAuthenticated]);
+
+  async function fetchAssignments() {
+    try {
+      const res = await api.get<{ assignments: Assignment[] }>('/api/assignments');
+      setAssignments(res.data.assignments);
+    } catch (err: any) {
+      toast({ title: 'Failed to load assignments', description: err.message, variant: 'destructive' });
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen w-full bg-site-bg flex items-center justify-center px-4">
+        <div className="flex flex-col items-center gap-2 animate-pulse">
+          <div className="w-10 h-10 rounded-full bg-site-border"></div>
+          <p className="text-site-muted text-sm">Loading…</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) return null;
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold">Assignments</h1>
-          <p className="text-muted-foreground">View and manage course assignments.</p>
+    <div className="min-h-screen w-full bg-site-bg px-4 py-12">
+      <div className="max-w-5xl mx-auto">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
+          <div>
+            <h1 className="text-2xl font-bold text-site-text">Assignments</h1>
+            <p className="text-site-muted">View and manage course assignments.</p>
+          </div>
         </div>
-        <Button asChild>
-          <Link to="/assignments/new">
-            <Plus className="w-4 h-4 mr-2" /> New Assignment
-          </Link>
-        </Button>
-      </div>
 
-      {isLoading ? (
-        <div className="p-8 text-center text-muted-foreground">Loading assignments...</div>
-      ) : (
-        <div className="rounded-xl border border-input bg-card">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Title</TableHead>
-                <TableHead className="w-40">Instructions</TableHead>
-                <TableHead className="w-32">Due Date</TableHead>
-                <TableHead className="w-20">Max Score</TableHead>
-                <TableHead className="w-20"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {assignments.map((a) => (
-                <TableRow key={a.id}>
-                  <TableCell className="font-medium">
-                    <Link to={`/assignments/${a.id}`} className="hover:underline">{a.title}</Link>
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground line-clamp-1">
-                    {a.instructions ?? '—'}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    <Clock className="w-3 h-3 mr-1" />
-                    {new Date(a.due_date).toLocaleDateString()}
-                  </TableCell>
-                  <TableCell>{a.max_score}</TableCell>
-                  <TableCell className="text-right"></TableCell>
-                </TableRow>
-              ))}
-              {assignments.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-center text-muted-foreground py-4">
-                    No assignments found.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </div>
-      )}
+        {assignments.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <FileText className="w-16 h-16 text-site-muted/30 mb-4" />
+            <h3 className="font-bold text-site-text mb-2">No assignments yet</h3>
+            <p className="text-site-muted">Assignments will appear here once they are created.</p>
+          </div>
+        ) : (
+          <div className="rounded-xl border border-site-border bg-site-card overflow-hidden">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="border-b border-site-border">
+                  <th className="px-6 py-4 text-sm font-bold text-site-muted">Title</th>
+                  <th className="px-6 py-4 text-sm font-bold text-site-muted">Instructions</th>
+                  <th className="px-6 py-4 text-sm font-bold text-site-muted">Due Date</th>
+                  <th className="px-6 py-4 text-sm font-bold text-site-muted">Max Score</th>
+                </tr>
+              </thead>
+              <tbody>
+                {assignments.map((a) => (
+                  <tr key={a.id} className="border-b border-site-border hover:bg-primary/5 transition-colors">
+                    <td className="px-6 py-4">
+                      <div className="font-medium text-site-text">{a.title}</div>
+                    </td>
+                    <td className="px-6 py-4 text-site-muted text-sm">
+                      {a.instructions || '—'}
+                    </td>
+                    <td className="px-6 py-4 text-site-muted text-sm">
+                      <Clock className="w-3 h-3 mr-1" />
+                      {new Date(a.due_date).toLocaleDateString()}
+                    </td>
+                    <td className="px-6 py-4 text-site-text font-medium">{a.max_score}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
-

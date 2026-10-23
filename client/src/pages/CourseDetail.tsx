@@ -1,7 +1,10 @@
-import { useParams } from 'react-router-dom';
-import { useGet } from '@/hooks/useApi.ts';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card.tsx';
-import { Play, File } from 'lucide-react';
+import useAuth from '@/hooks/useAuth.ts';
+import { useEffect, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { Button } from '@/components/ui/button.tsx';
+import { Play, File, ChevronLeft } from 'lucide-react';
+import api from '@/lib/api.ts';
+import { useToast } from '@/components/ui/toast.tsx';
 
 interface Module {
   id: string;
@@ -21,74 +24,126 @@ interface Course {
 }
 
 export default function CourseDetailPage() {
+  const { user, isAuthenticated, isLoading } = useAuth();
+  const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
-  if (!id) return <div className="p-8 text-center">Invalid course.</div>;
+  const { toast } = useToast();
+  const [course, setCourse] = useState<Course | null>(null);
+  const [modules, setModules] = useState<Module[]>([]);
+  useEffect(() => {
+    if (!isAuthenticated || !id) return;
+    fetchCourse();
+  }, [isAuthenticated, id]);
 
-  const { data, isLoading } = useGet<{ course: Course; modules: Module[] }>(
-    ['course', id],
-    `/api/courses/${id}`,
-  );
+  async function fetchCourse() {
+    try {
+      const res = await api.get<{ course: Course; modules: Module[] }>(`/api/courses/${id}`);
+      setCourse(res.data.course);
+      setModules(res.data.modules);
+    } catch (err: any) {
+      toast({ title: 'Failed to load course', description: err.message, variant: 'destructive' });
+    }
+  }
 
-  const course = data?.course;
-  const modules = data?.modules ?? [];
+  if (isLoading || !course) {
+    return (
+      <div className="min-h-screen w-full bg-site-bg flex items-center justify-center px-4">
+        <div className="flex flex-col items-center gap-2 animate-pulse">
+          <div className="w-10 h-10 rounded-full bg-site-border"></div>
+          <p className="text-site-muted text-sm">Loading…</p>
+        </div>
+      </div>
+    );
+  }
 
-  if (isLoading) return <div className="p-8 text-center">Loading course...</div>;
-  if (!course) return <div className="p-8 text-center">Course not found.</div>;
+  if (!isAuthenticated) return null;
+
+  const canEdit = user?.role === 'admin' || user?.role === 'teacher';
 
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-xl">{course.code} — {course.name}</CardTitle>
-          <p className="text-sm text-muted-foreground">{course.description ?? 'No description.'}</p>
-          <div className="flex gap-2 text-xs text-muted-foreground mt-2">
-            <span>Credits: {course.credits}</span>
+    <div className="min-h-screen w-full bg-site-bg px-4 py-12">
+      <div className="max-w-5xl mx-auto">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
+          <div>
+            <Button
+              onClick={() => navigate('/courses')}
+              className="text-sm bg-transparent hover:bg-primary/10 text-primary px-3 py-1.5 mr-2"
+            >
+              <ChevronLeft className="w-4 h-4 mr-1" /> Back to courses
+            </Button>
+            <h1 className="text-2xl font-bold text-site-text">{course.code} — {course.name}</h1>
+            <p className="text-site-muted">{course.description || 'No description available.'}</p>
           </div>
-        </CardHeader>
-      </Card>
+          {canEdit && (
+            <Button onClick={() => navigate(`/courses/${id}/edit`)} className="bg-primary text-white hover:bg-blue-700 px-6 py-2">
+              Edit Course
+            </Button>
+          )}
+        </div>
 
-      <div className="flex flex-col lg:flex-row gap-6">
-        <div className="flex-1">
-          <Card>
-            <CardHeader>
-              <CardTitle>Modules</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {modules.length === 0 ? (
-                <p className="text-muted-foreground text-sm">No modules yet.</p>
-              ) : (
-                <div className="space-y-3">
-                  {modules.map((m) => (
-                    <div key={m.id} className="flex items-center gap-3 p-3 rounded-lg border border-input bg-background hover:bg-muted/50 transition-colors group">
-                      <div className="flex w-6 items-center justify-center text-xs font-medium text-muted-foreground group-hover:text-primary">
-                        {m.order_index + 1}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium truncate">{m.title}</div>
-                        {m.rich_description && (
-                          <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">
-                            {m.rich_description}
-                          </p>
-                        )}
-                      </div>
-                      <div className="flex gap-1">
-                        {m.video_url && (
-                          <a href={m.video_url} target="_blank" rel="noopener noreferrer" className="p-1.5 text-muted-foreground hover:text-primary" title="Video">
-                            <Play className="w-4 h-4" />
-                          </a>
-                        )}
-                        {m.attachment_url && (
-                          <a href={m.attachment_url} target="_blank" rel="noopener noreferrer" className="p-1.5 text-muted-foreground hover:text-primary" title="Attachment">
-                            <File className="w-4 h-4" />
-                          </a>
-                        )}
-                      </div>
-                    </div>
-                  ))}
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          <div className="col-span-1 md:col-span-1 lg:col-span-1">
+            <div className="rounded-xl border border-site-border bg-site-card p-6 shadow-sm">
+              <h3 className="font-bold text-site-text mb-4">Course Info</h3>
+              <div className="space-y-3">
+                <div className="flex justify-between text-sm">
+                  <span className="text-site-muted">Credits</span>
+                  <span className="text-site-text font-medium">{course.credits}</span>
                 </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-site-muted">Course Code</span>
+                  <span className="text-site-text font-mono">{course.code}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-8">
+          <h2 className="font-bold text-site-text mb-4">Modules</h2>
+          {modules.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 text-center">
+              <File className="w-16 h-16 text-site-muted/30 mb-4" />
+              <h3 className="font-bold text-site-text mb-2">No modules yet</h3>
+              <p className="text-site-muted">Add modules to organize course content.</p>
+              {canEdit && (
+                <Button
+                  onClick={() => navigate(`/courses/${id}/modules/new`)}
+                  className="mt-4 bg-primary text-white hover:bg-blue-700 px-6 py-2"
+                >
+                  Add Module
+                </Button>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {modules.map((m) => (
+                <div key={m.id} className="flex items-center gap-4 p-4 rounded-xl border border-site-border bg-site-card">
+                  <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary font-bold">
+                    {m.order_index + 1}
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-medium text-site-text">{m.title}</h3>
+                    {m.rich_description && (
+                      <p className="text-sm text-site-muted line-clamp-1 mt-1">{m.rich_description}</p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {m.video_url && (
+                      <a href={m.video_url} target="_blank" rel="noopener noreferrer" className="p-2 text-primary hover:bg-primary/10 rounded-lg" title="Video">
+                        <Play className="w-4 h-4" />
+                      </a>
+                    )}
+                    {m.attachment_url && (
+                      <a href={m.attachment_url} target="_blank" rel="noopener noreferrer" className="p-2 text-primary hover:bg-primary/10 rounded-lg" title="Attachment">
+                        <File className="w-4 h-4" />
+                      </a>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

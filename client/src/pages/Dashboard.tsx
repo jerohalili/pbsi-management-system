@@ -112,3 +112,4 @@ function ActivityRow({ icon, text, time }: { icon: React.ReactNode; text: string
     </div>
   );
 }
+

@@ -1,9 +1,10 @@
-import { useGet } from '@/hooks/useApi.ts';
+import useAuth from '@/hooks/useAuth.ts';
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button.tsx';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table.tsx';
-import { Badge } from '@/components/ui/badge.tsx';
-import { Plus } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { ClipboardList, Plus } from 'lucide-react';
+import api from '@/lib/api.ts';
+import { useToast } from '@/components/ui/toast.tsx';
 
 interface Quiz {
   id: string;
@@ -15,68 +16,103 @@ interface Quiz {
 }
 
 export default function QuizzesPage() {
-  const { data, isLoading } = useGet<{ quizzes: Quiz[] }>(
-    ['quizzes'],
-    '/api/quizzes',
-  );
+  const { user, isAuthenticated, isLoading } = useAuth();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const [quizzes, setQuizzes] = useState<Quiz[]>([]);
 
-  const quizzes = data?.quizzes ?? [];
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    fetchQuizzes();
+  }, [isAuthenticated]);
+
+  async function fetchQuizzes() {
+    try {
+      const res = await api.get<{ quizzes: Quiz[] }>('/api/quizzes');
+      setQuizzes(res.data.quizzes);
+    } catch (err: any) {
+      toast({ title: 'Failed to load quizzes', description: err.message, variant: 'destructive' });
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen w-full bg-site-bg flex items-center justify-center px-4">
+        <div className="flex flex-col items-center gap-2 animate-pulse">
+          <div className="w-10 h-10 rounded-full bg-site-border"></div>
+          <p className="text-site-muted text-sm">Loading…</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) return null;
+
+  const canCreate = user?.role === 'admin' || user?.role === 'teacher';
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold">Quizzes</h1>
-          <p className="text-muted-foreground">Auto-graded assessments.</p>
+    <div className="min-h-screen w-full bg-site-bg px-4 py-12">
+      <div className="max-w-5xl mx-auto">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
+          <div>
+            <h1 className="text-2xl font-bold text-site-text">Quizzes</h1>
+            <p className="text-site-muted">Auto-graded assessments.</p>
+          </div>
+          {canCreate && (
+            <Button onClick={() => navigate('/quizzes/new')} className="bg-primary text-white hover:bg-blue-700 px-6 py-2">
+              <Plus className="w-4 h-4 mr-2" /> New Quiz
+            </Button>
+          )}
         </div>
-        <Button asChild>
-          <Link to="/quizzes/new">
-            <Plus className="w-4 h-4 mr-2" /> New Quiz
-          </Link>
-        </Button>
-      </div>
 
-      {isLoading ? (
-        <div className="p-8 text-center text-muted-foreground">Loading quizzes...</div>
-      ) : (
-        <div className="rounded-xl border border-input bg-card">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Title</TableHead>
-                <TableHead className="w-32">Time Limit</TableHead>
-                <TableHead className="w-24">Status</TableHead>
-                <TableHead className="w-20"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {quizzes.map((q) => (
-                <TableRow key={q.id}>
-                  <TableCell className="font-medium">
-                    <Link to={`/quizzes/${q.id}`} className="hover:underline">{q.title}</Link>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {q.time_limit_minutes ? `${q.time_limit_minutes} min` : 'No limit'}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={q.is_published ? 'success' : 'default'}>
-                      {q.is_published ? 'Published' : 'Draft'}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right"></TableCell>
-                </TableRow>
-              ))}
-              {quizzes.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={4} className="text-center text-muted-foreground py-4">
-                    No quizzes found.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </div>
-      )}
+        {quizzes.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <ClipboardList className="w-16 h-16 text-site-muted/30 mb-4" />
+            <h3 className="font-bold text-site-text mb-2">No quizzes yet</h3>
+            <p className="text-site-muted">Quizzes will appear here once they are created.</p>
+            {canCreate && (
+              <Button
+                onClick={() => navigate('/quizzes/new')}
+                className="mt-4 bg-primary text-white hover:bg-blue-700 px-6 py-2"
+              >
+                Create your first quiz
+              </Button>
+            )}
+          </div>
+        ) : (
+          <div className="rounded-xl border border-site-border bg-site-card overflow-hidden">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="border-b border-site-border">
+                  <th className="px-6 py-4 text-sm font-bold text-site-muted">Title</th>
+                  <th className="px-6 py-4 text-sm font-bold text-site-muted">Time Limit</th>
+                  <th className="px-6 py-4 text-sm font-bold text-site-muted">Status</th>
+                  <th className="px-6 py-4 text-sm font-bold text-site-muted"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {quizzes.map((q) => (
+                  <tr key={q.id} className="border-b border-site-border hover:bg-primary/5 transition-colors">
+                    <td className="px-6 py-4 font-medium text-site-text">{q.title}</td>
+                    <td className="px-6 py-4 text-site-muted text-sm">
+                      {q.time_limit_minutes ? `${q.time_limit_minutes} min` : 'No limit'}
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                        q.is_published ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
+                      }`}
+                      >
+                        {q.is_published ? 'Published' : 'Draft'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-right"></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
