@@ -12,7 +12,7 @@ import { UserRole } from '../types/index.js';
 const COOKIE_OPTIONS: Record<string, unknown> = {
   httpOnly: true,
   secure: process.env.NODE_ENV === 'production',
-  sameSite: 'lax' as const,
+  sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
   path: '/',
   maxAge: 7 * 24 * 60 * 60 * 1000,
 };
@@ -125,9 +125,16 @@ export async function login(req: Request, res: Response): Promise<void> {
   });
 }
 
+const CLEAR_COOKIE_OPTIONS: Record<string, unknown> = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+  path: '/',
+};
+
 export async function logout(_req: Request, res: Response): Promise<void> {
-  res.clearCookie('access_token', { path: '/' });
-  res.clearCookie('refresh_token', { path: '/' });
+  res.clearCookie('access_token', CLEAR_COOKIE_OPTIONS);
+  res.clearCookie('refresh_token', CLEAR_COOKIE_OPTIONS);
   res.json({ message: 'Logged out successfully' });
 }
 

@@ -36,16 +36,23 @@ app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 // Rate limiting
-const authLimiter = rateLimit({
+const strictAuthLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 20,
   message: 'Too many authentication attempts, please try again later',
+});
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  message: 'Too many requests, please try again later',
 });
 const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 300,
 });
 
+app.use('/api/auth/login', strictAuthLimiter);
+app.use('/api/auth/register', strictAuthLimiter);
 app.use('/api/auth', authLimiter);
 app.use(generalLimiter);
 
