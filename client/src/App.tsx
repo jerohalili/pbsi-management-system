@@ -14,6 +14,7 @@ import {
 } from '@/components/layout/Sidebar.tsx';
 import Dashboard from '@/pages/Dashboard.tsx';
 import Login from '@/pages/Login.tsx';
+import Register from '@/pages/Register.tsx';
 import Home from '@/pages/Home.tsx';
 import NotFound from '@/pages/NotFound.tsx';
 import Students from '@/pages/Students.tsx';
@@ -51,6 +52,7 @@ const App = () => {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/register" element={<Register />} />
       <Route path="/" element={<Home />} />
       <Route element={<RoleLayout />}>
         <Route path="dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />

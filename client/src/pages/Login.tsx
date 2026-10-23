@@ -1,13 +1,11 @@
 import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import useAuth from '@/hooks/useAuth.ts';
 import { useToast } from '@/components/ui/toast.tsx';
-import api from '@/lib/api.ts';
-import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from '@/components/ui/card.tsx';
 import { Button } from '@/components/ui/button.tsx';
 import { Input } from '@/components/ui/input.tsx';
 import { Label } from '@/components/ui/label.tsx';
-import { Mail, Lock } from 'lucide-react';
+import { Mail, Lock, User } from 'lucide-react';
 
 export default function Login() {
   const { login } = useAuth();
@@ -15,29 +13,14 @@ export default function Login() {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState('student');
-  const [isRegister, setIsRegister] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     try {
-      if (isRegister) {
-        const name = email.split('@')[0] || 'User';
-        await api.post('/auth/register', {
-          email,
-          password,
-          role,
-          first_name: name,
-          last_name: 'Account',
-        });
-        toast({ title: 'Account created', description: 'You can now log in.', variant: 'success' });
-        setIsRegister(false);
-      } else {
-        await login(email, password);
-        navigate('/');
-      }
+      await login(email, password);
+      navigate('/');
     } catch (err: any) {
       toast({ title: 'Login failed', description: err?.response?.data?.error || err.message, variant: 'destructive' });
     } finally {
@@ -46,65 +29,77 @@ export default function Login() {
   };
 
   return (
-    <div className="flex min-h-screen w-full items-center justify-center bg-muted/50 px-4">
-      <Card className="w-full max-w-md shadow-xl">
-        <CardHeader className="space-y-1">
-          <CardTitle>{isRegister ? 'Create Account' : 'Welcome back'}</CardTitle>
-          <CardDescription>
-            {isRegister ? 'Join PBSI School Management System' : 'Sign in to your account'}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <form onSubmit={handleSubmit}>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <div className="flex items-center pl-3 border border-input rounded-md focus-within:ring-2 focus-within:ring-ring">
-                  <Mail className="w-4 h-4 text-muted-foreground shrink-0" />
-                  <Input id="email" type="email" placeholder="name@school.edu" value={email} onChange={(e) => setEmail(e.target.value)} className="pl-3" />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <div className="flex items-center pl-3 border border-input rounded-md focus-within:ring-2 focus-within:ring-ring">
-                  <Lock className="w-4 h-4 text-muted-foreground shrink-0" />
-                  <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="pl-3" />
-                </div>
-              </div>
-              {isRegister && (
-                <div className="space-y-2">
-                  <Label htmlFor="role">Role</Label>
-                    <select id="role" value={role} onChange={(e) => setRole(e.target.value as any)} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
-                      <option value="admin">Admin</option>
-                      <option value="teacher">Teacher</option>
-                      <option value="student">Student</option>
-                      <option value="parent">Parent</option>
-                    </select>
-                </div>
-              )}
+    <div className="relative min-h-screen w-full px-4">
+      <div className="absolute inset-0 bg-[linear-gradient(135deg,#1e3a8a_0%,#3b82f6_50%,#60a5fa_100%)]"></div>
+      <div className="absolute inset-0 bg-gradient-to-b from-white/30 via-transparent to-transparent"></div>
+      <div className="relative z-10 flex min-h-screen w-full flex-col items-center justify-center p-4">
+        <div className="w-full max-w-md bg-white/90 backdrop-blur-md rounded-2xl shadow-2xl border border-white/20 px-8 py-10">
+          <div className="text-center mb-8">
+            <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-blue-600/10 text-blue-600 mb-4">
+              <User className="w-6 h-6" />
             </div>
+            <h1 className="text-2xl font-bold text-gray-900">Welcome back</h1>
+            <p className="text-gray-500 mt-1">Sign in to your PBSI account</p>
+          </div>
 
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'Please wait...' : isRegister ? 'Create account' : 'Sign in'}
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <div className="space-y-2">
+              <Label htmlFor="email">Email address</Label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="name@school.edu"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <Input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+            </div>
+            <Button type="submit" className="w-full bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-70" disabled={loading}>
+              {loading ? 'Signing in...' : 'Sign in'}
             </Button>
           </form>
-        </CardContent>
-        <CardFooter className="flex flex-col space-y-2 sm:flex-row sm:justify-between">
-          <p className="text-sm text-muted-foreground">
-            {isRegister ? 'Already have an account?' : "Don't have an account?"}{' '}
-            <button
-              onClick={() => setIsRegister((p) => !p)}
-              className="text-primary font-medium hover:underline"
-            >
-              {isRegister ? 'Sign in' : 'Create account'}
-            </button>
-          </p>
-          <Link to="/" className="text-xs text-muted-foreground underline underline-offset-4">
-            Back to home
-          </Link>
-        </CardFooter>
-      </Card>
+
+          <div className="mt-6 relative">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t"></span>
+            </div>
+            <div className="relative flex justify-center text-xs">
+              <span className="px-2 bg-white/90 text-gray-500">
+                Don't have an account?{' '}
+                <button
+                  onClick={() => navigate('/register')}
+                  className="text-blue-600 font-medium hover:underline"
+                >
+                  Create account
+                </button>
+              </span>
+            </div>
+          </div>
+
+          <button
+            onClick={() => navigate('/')}
+            className="mt-6 w-full flex items-center justify-center gap-2 text-sm text-gray-500 hover:text-gray-700"
+          >
+            <span className="w-3 h-3 text-gray-400">←</span> Back to home
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
-
