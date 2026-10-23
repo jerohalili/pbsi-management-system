@@ -44,7 +44,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(null);
     } finally {
       setIsLoading(false);
-  }
+    }
   }, []);
 
   useEffect(() => {
@@ -92,10 +92,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const allowed = Array.isArray(roles) ? roles : [roles];
     return allowed.includes(user.role);
   };
-
-  if (isLoading) {
-    return null;
-  }
 
   return (
     <AuthContext.Provider value={{ user, isAuthenticated: !!user, isLoading, login, register, logout, hasRole }}>
