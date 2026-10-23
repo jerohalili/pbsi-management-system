@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useAuth from '@/hooks/useAuth.ts';
 import { Button } from '@/components/ui/button.tsx';
-import { GraduationCap, Users, BookOpen, Award } from 'lucide-react';
+import { GraduationCap } from 'lucide-react';
 
 export default function Home() {
   const { user, isAuthenticated, isLoading } = useAuth();
@@ -10,10 +10,10 @@ export default function Home() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen w-full bg-gradient-to-r from-primary to-primary-light flex items-center justify-center px-4">
+      <div className="min-h-screen w-full bg-site-bg flex items-center justify-center px-4">
         <div className="flex flex-col items-center gap-2 animate-pulse">
-          <div className="w-12 h-12 rounded-full bg-white/20"></div>
-          <p className="text-white text-sm font-medium">Loading…</p>
+          <div className="w-10 h-10 rounded-full bg-site-border"></div>
+          <p className="text-site-muted text-sm">Loading…</p>
         </div>
       </div>
     );
@@ -21,54 +21,34 @@ export default function Home() {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen w-full bg-gradient-to-r from-primary to-primary-light px-4 py-12">
-        <div className="max-w-[1596px] mx-auto">
-          {/* Header / Hero */}
-          <div className="pt-48 pb-40 text-center">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white/20 text-white mb-6">
-              <GraduationCap className="w-8 h-8" />
-            </div>
-            <h1 className="text-6xl md:text-8xl lg:text-9xl font-extrabold text-white leading-[0.95] mb-8 tracking-tighter">
-              PBSI School Management
-            </h1>
-            <p className="text-xl md:text-2xl text-white/90 max-w-2xl mx-auto leading-relaxed font-medium mb-12">
-              The modern school management system for students, teachers, and administrators.
-            </p>
-            <div className="flex flex-col sm:flex-row justify-center items-center gap-4">
-              <Button
-                onClick={() => navigate('/login')}
-                className="w-full sm:w-auto bg-white text-primary px-14 py-6 rounded-2xl font-bold text-xl hover:bg-blue-700 hover:shadow-2xl hover:shadow-primary/40 active:scale-95 transition-all duration-300"
-              >
-                Sign in
-              </Button>
-              <button
-                onClick={() => navigate('/register')}
-                className="w-full sm:w-auto bg-site-card/60 backdrop-blur-sm text-site-text border-2 border-site-border rounded-2xl px-10 py-4 font-bold text-xl hover:bg-site-card hover:border-primary/20 hover:shadow-xl hover:shadow-primary/10 transition-all duration-300 active:scale-95"
-              >
-                Create account
-              </button>
-            </div>
+      <div className="min-h-screen w-full bg-site-bg px-4 py-10">
+        <div className="max-w-[1200px] mx-auto text-center">
+          {/* Hero header */}
+          <div className="inline-flex items-center gap-2 bg-primary/10 px-6 py-2.5 rounded-2xl border border-primary/10 text-primary mb-8">
+            <GraduationCap className="w-5 h-5" />
+            <span className="font-bold text-site-text">PBSI School Management</span>
           </div>
+          <h1 className="text-4xl md:text-5xl font-bold text-site-text mb-6 leading-tight tracking-tight">
+            PBSI School Management
+          </h1>
+          <p className="text-xl text-site-muted max-w-2xl mx-auto leading-relaxed mb-12">
+            The modern school management system for students, teachers, and administrators.
+          </p>
 
-          {/* Feature grid */}
-          <div className="max-w-[1596px] mx-auto px-4 md:px-10 pb-40">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              <FeatureCard
-                icon={<Users className="w-6 h-6 text-primary" />}
-                title="Student Records"
-                desc="Manage student profiles, enrollment history, subjects, and cumulative GPA tracking."
-              />
-              <FeatureCard
-                icon={<BookOpen className="w-6 h-6 text-primary" />}
-                title="Courses & Modules"
-                desc="Create courses with rich content, modules, video links, and downloadable attachments."
-              />
-              <FeatureCard
-                icon={<Award className="w-6 h-6 text-primary" />}
-                title="Grades & GPA"
-                desc="Track assignments, quizzes, term grades, and cumulative GPA analytics."
-              />
-            </div>
+          {/* CTA buttons */}
+          <div className="flex flex-col sm:flex-row justify-center gap-4">
+            <Button
+              onClick={() => navigate('/login')}
+              className="w-full sm:w-auto bg-primary text-white rounded-2xl px-10 py-4 font-bold text-lg hover:bg-blue-700 active:scale-95 transition-all duration-200"
+            >
+              Sign in
+            </Button>
+            <button
+              onClick={() => navigate('/register')}
+              className="w-full sm:w-auto bg-white border-2 border-site-border rounded-2xl px-10 py-4 font-bold text-site-text hover:bg-primary/5 active:scale-95 transition-all duration-200"
+            >
+              Create account
+            </button>
           </div>
         </div>
       </div>
@@ -85,16 +65,4 @@ export default function Home() {
   }, [user, isAuthenticated, navigate, role]);
 
   return null;
-}
-
-function FeatureCard({ icon, title, desc }: { icon: React.ReactNode; title: string; desc: string }) {
-  return (
-    <div className="group bg-site-card border border-site-border rounded-[32px] p-8 shadow-sm hover:border-primary/20 transition-all duration-500 ease-out flex flex-col h-full min-h-full">
-      <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary mb-4 group-hover:scale-110 transition-transform duration-500 ease-out shrink-0">
-        {icon}
-      </div>
-      <h3 className="font-bold text-site-text mb-2">{title}</h3>
-      <p className="text-site-muted leading-relaxed text-sm">{desc}</p>
-    </div>
-  );
 }
