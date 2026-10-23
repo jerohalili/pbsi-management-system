@@ -29,9 +29,8 @@ const LayoutByRole: Record<Role, React.ComponentType<{ children: React.ReactNode
 };
 
 function RoleLayout({ children }: { children?: React.ReactNode }) {
-  const { user, isLoading } = useAuth();
-  if (isLoading) return null;
-  const Layout = user ? LayoutByRole[user.role] : StudentLayout;
+  const { user } = useAuth();
+  const Layout = user ? LayoutByRole[user.role as Role] : StudentLayout;
   return <Layout>{children}</Layout>;
 }
 
@@ -40,18 +39,15 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
   const location = useLocation();
 
-  if (isLoading) return null;
+  if (isLoading) return <div className="min-h-screen flex items-center justify-center">Loading…</div>;
   if (!user || !isAuthenticated) {
     navigate('/login', { state: { from: location }, replace: true });
-    return null;
+    return <div className="min-h-screen flex items-center justify-center">Redirecting…</div>;
   }
   return <>{children}</>;
 }
 
 const App = () => {
-  const { isLoading } = useAuth();
-  if (isLoading) return null;
-
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
