@@ -39,7 +39,9 @@ api.interceptors.response.use(
       _retry?: boolean;
     };
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    const isAuthEndpoint = originalRequest.url?.includes('/auth/');
+
+    if (error.response?.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
       if (!isRefreshing) {
         isRefreshing = true;
         try {
@@ -52,7 +54,6 @@ api.interceptors.response.use(
           isRefreshing = false;
           localStorage.removeItem('access_token');
           localStorage.removeItem('user');
-          window.location.href = '/login';
           return Promise.reject(error);
         }
       }
