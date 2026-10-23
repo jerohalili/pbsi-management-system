@@ -16,7 +16,6 @@
     "noFallthroughCasesInSwitch": true,
     "moduleDetection": "force",
     "skipLibCheck": true,
-    "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"]
     }
