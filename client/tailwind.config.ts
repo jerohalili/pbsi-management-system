@@ -18,6 +18,7 @@ const config: Config = {
           DEFAULT: 'hsl(var(--primary))',
           foreground: 'hsl(var(--primary-foreground))',
         },
+        'primary-light': '#407BFF',
         secondary: {
           DEFAULT: 'hsl(var(--secondary))',
           foreground: 'hsl(var(--secondary-foreground))',
@@ -41,6 +42,13 @@ const config: Config = {
         card: {
           DEFAULT: 'hsl(var(--card))',
           foreground: 'hsl(var(--card-foreground))',
+        },
+        site: {
+          bg: 'hsl(var(--background))',
+          text: 'hsl(var(--foreground))',
+          muted: 'hsl(var(--muted-foreground))',
+          card: 'hsl(var(--card))',
+          border: 'hsl(var(--border))',
         },
       },
       borderRadius: {

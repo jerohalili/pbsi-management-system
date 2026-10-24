@@ -2,7 +2,41 @@ import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useAuth from '@/hooks/useAuth.ts';
 import { Button } from '@/components/ui/button.tsx';
-import { GraduationCap } from 'lucide-react';
+import {
+  GraduationCap,
+  Users,
+  BookOpen,
+  Shield,
+  Heart,
+  ArrowRight,
+} from 'lucide-react';
+
+const roleCards = [
+  {
+    title: 'Administrator',
+    icon: Shield,
+    description:
+      'Manage students, courses, teachers, and school-wide settings from one dashboard.',
+  },
+  {
+    title: 'Teacher',
+    icon: BookOpen,
+    description:
+      'Create courses, post assignments, track attendance, and record grades.',
+  },
+  {
+    title: 'Student',
+    icon: Users,
+    description:
+      'Enroll in courses, view assignments, check grades, and manage your timetable.',
+  },
+  {
+    title: 'Parent',
+    icon: Heart,
+    description:
+      'Monitor your child\'s progress, attendance, and school announcements.',
+  },
+];
 
 export default function Home() {
   const { user, isAuthenticated, isLoading } = useAuth();
@@ -22,34 +56,76 @@ export default function Home() {
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen w-full bg-site-bg px-4 py-10">
-        <div className="max-w-[1200px] mx-auto text-center">
-          {/* Hero header */}
-          <div className="inline-flex items-center gap-2 bg-primary/10 px-6 py-2.5 rounded-2xl border border-primary/10 text-primary mb-8">
-            <GraduationCap className="w-5 h-5" />
-            <span className="font-bold text-site-text">PBSI School Management</span>
-          </div>
-          <h1 className="text-4xl md:text-5xl font-bold text-site-text mb-6 leading-tight tracking-tight">
-            PBSI School Management
-          </h1>
-          <p className="text-xl text-site-muted max-w-2xl mx-auto leading-relaxed mb-12">
-            The modern school management system for students, teachers, and administrators.
-          </p>
+        <div className="max-w-[1200px] mx-auto">
+          {/* Hero section */}
+          <section className="relative text-center pt-24 pb-16 md:pt-32 md:pb-24">
+            <div className="inline-flex items-center gap-2 bg-primary/10 px-6 py-2.5 rounded-2xl border border-primary/10 text-primary font-bold text-xs uppercase tracking-widest mb-10 inline-block">
+              <GraduationCap className="w-4 h-4" />
+              <span>PBSI School Management</span>
+            </div>
+            <h1 className="text-5xl md:text-7xl lg:text-8xl font-black text-site-text leading-[0.95] tracking-tighter mb-8">
+              Manage your <br />
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#0033A0] to-[#407BFF] dark:from-[#3B82F6] dark:to-[#407BFF] pr-[0.1em] selection:bg-primary/30">
+                school, empower your students
+              </span>
+            </h1>
+            <p className="text-xl text-site-muted max-w-2xl mx-auto leading-relaxed mb-12 font-medium">
+              The modern school management system for students, teachers, and
+              administrators.
+            </p>
 
-          {/* CTA buttons */}
-          <div className="flex flex-col sm:flex-row justify-center gap-4">
-            <Button
-              onClick={() => navigate('/login')}
-              className="w-full sm:w-auto bg-primary text-white rounded-2xl px-10 py-4 font-bold text-lg hover:bg-blue-700 active:scale-95 transition-all duration-200"
-            >
-              Sign in
-            </Button>
-            <button
-              onClick={() => navigate('/register')}
-              className="w-full sm:w-auto bg-white border-2 border-site-border rounded-2xl px-10 py-4 font-bold text-site-text hover:bg-primary/5 active:scale-95 transition-all duration-200"
-            >
-              Create account
-            </button>
-          </div>
+            {/* CTA buttons */}
+            <div className="flex flex-col sm:flex-row justify-center gap-4">
+              <Button
+                onClick={() => navigate('/login')}
+                className="w-full sm:w-auto bg-primary text-white rounded-2xl px-10 py-4 font-bold text-lg hover:-translate-y-1 hover:shadow-2xl hover:shadow-primary/40 active:scale-95 transition-all duration-300"
+              >
+                Sign in
+              </Button>
+              <button
+                onClick={() => navigate('/register')}
+                className="w-full sm:w-auto bg-site-card/60 backdrop-blur-sm text-site-text border-2 border-site-border rounded-2xl px-10 py-4 font-bold text-lg hover:bg-primary hover:text-white active:scale-95 transition-all duration-300"
+              >
+                Create account
+              </button>
+            </div>
+          </section>
+
+          {/* Role cards */}
+          <section className="mt-24 md:mt-32">
+            <div className="text-center mb-16">
+              <h2 className="text-primary font-bold uppercase tracking-widest text-xs md:text-sm mb-3">
+                Who is PBSI for?
+              </h2>
+              <h3 className="text-3xl md:text-5xl font-extrabold text-site-text leading-tight">
+                Built for every role in your school
+              </h3>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8">
+              {roleCards.map((role) => (
+                <div
+                  key={role.title}
+                  className="bg-site-card border border-site-border rounded-[32px] p-8 md:p-10 overflow-hidden group transition-all duration-300 hover:border-primary/20 flex flex-col h-full"
+                >
+                  <div className="w-14 h-14 bg-primary/10 text-primary rounded-2xl flex items-center justify-center shrink-0 mb-6 group-hover:scale-110 transition-transform duration-500">
+                    <role.icon className="w-7 h-7" />
+                  </div>
+                  <h4 className="text-xl md:text-2xl font-bold text-site-text mb-3 leading-tight">
+                    {role.title}
+                  </h4>
+                  <p className="text-site-muted text-base leading-relaxed font-medium flex-grow">
+                    {role.description}
+                  </p>
+                  <button
+                    onClick={() => navigate('/login')}
+                    className="mt-auto inline-flex items-center gap-2 text-primary font-bold text-sm uppercase tracking-widest hover:gap-4 transition-all duration-300"
+                  >
+                    Enter portal <ArrowRight className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </section>
         </div>
       </div>
     );
