@@ -112,7 +112,7 @@ export function Sidebar() {
                 isActive
                   ? 'bg-primary text-primary-foreground'
                   : 'text-foreground hover:bg-accent'
-              } ${collapsed ? 'justify-center px-1' : ''}`}
+              } ${collapsed ? 'px-1' : ''}`}
               aria-pressed={isActive}
             >
               <span className={collapsed ? 'w-6' : 'w-5 h-5'}>{item.icon}</span>
