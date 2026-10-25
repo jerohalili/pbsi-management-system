@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import useAuth from '@/hooks/useAuth.ts';
 import { Button } from '@/components/ui/button.tsx';
 import {
@@ -31,15 +31,26 @@ const roleCards = [
 ];
 
 export default function Home() {
+  const [searchParams] = useSearchParams();
+  const forceLoading = searchParams.get('loading') === 'true';
   const { user, isAuthenticated, isLoading } = useAuth();
   const navigate = useNavigate();
 
-  if (isLoading) {
+  if (forceLoading || isLoading) {
     return (
       <div className="min-h-screen w-full bg-site-bg flex items-center justify-center px-4">
-        <div className="flex flex-col items-center gap-2 animate-pulse">
-          <div className="w-10 h-10 rounded-full bg-site-border"></div>
-          <p className="text-site-muted text-sm">Loading…</p>
+        <div className="flex flex-col items-center gap-6 text-center">
+          <div className="relative w-16 h-16">
+            <div className="absolute inset-0 border-4 border-primary/10 rounded-full"></div>
+            <div className="absolute inset-0 border-4 border-t-primary rounded-full animate-spin"></div>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <GraduationCap className="w-8 h-8 text-primary" />
+            </div>
+          </div>
+          <h2 className="text-xl font-bold text-site-text">PBSI is waking up</h2>
+          <p className="text-site-muted text-sm">
+            Our school management system is starting up. <br /> Please wait a moment…
+          </p>
         </div>
       </div>
     );
