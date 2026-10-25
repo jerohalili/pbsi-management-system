@@ -37,7 +37,7 @@ export default function Register() {
   };
 
   return (
-    <div className="min-h-screen w-full bg-site-bg flex items-center justify-center px-4 py-12">
+    <div className="min-h-screen w-full bg-site-bg flex flex-col items-center px-4 py-12">
       <div className="w-full max-w-md">
         <div className="flex flex-col items-center text-center mb-10">
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-primary/10 text-primary mb-4">
@@ -117,7 +117,11 @@ export default function Register() {
                 <option value="parent">Parent</option>
               </select>
             </div>
-            <Button type="submit" className="w-full bg-primary text-white hover:bg-blue-700 disabled:opacity-70" disabled={loading}>
+            <Button
+              type="submit"
+              className="w-full bg-primary text-white px-8 py-4 rounded-2xl font-bold text-base disabled:opacity-70 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-primary/40 active:scale-95"
+              disabled={loading}
+            >
               {loading ? 'Creating account…' : 'Create account'}
             </Button>
           </form>
@@ -132,6 +136,19 @@ export default function Register() {
             </button>
           </div>
         </div>
+      </div>
+
+      <div className="w-full mt-6 text-center">
+        <a
+          href="/"
+          onClick={(e) => {
+            e.preventDefault();
+            navigate('/');
+          }}
+          className="text-site-muted text-sm font-medium hover:text-primary transition-colors uppercase tracking-widest"
+        >
+          ← Go back to homepage
+        </a>
       </div>
     </div>
   );

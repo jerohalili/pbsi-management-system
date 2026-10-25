@@ -7,8 +7,6 @@ import {
   Users,
   BookOpen,
   Shield,
-  Heart,
-  ArrowRight,
 } from 'lucide-react';
 
 const roleCards = [
@@ -29,12 +27,6 @@ const roleCards = [
     icon: Users,
     description:
       'Enroll in courses, view assignments, check grades, and manage your timetable.',
-  },
-  {
-    title: 'Parent',
-    icon: Heart,
-    description:
-      'Monitor your child\'s progress, attendance, and school announcements.',
   },
 ];
 
@@ -64,27 +56,28 @@ export default function Home() {
               <span>PBSI School Management</span>
             </div>
             <h1 className="text-5xl md:text-7xl lg:text-8xl font-black text-site-text leading-[0.95] tracking-tighter mb-8">
-              Manage your <br />
+              Presbyterian Bible <br />
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#0033A0] to-[#407BFF] dark:from-[#3B82F6] dark:to-[#407BFF] pr-[0.1em] selection:bg-primary/30">
-                school, empower your students
+                Seminary Inc.
               </span>
             </h1>
             <p className="text-xl text-site-muted max-w-2xl mx-auto leading-relaxed mb-12 font-medium">
-              The modern school management system for students, teachers, and
-              administrators.
+              The school management system for students, teachers, and
+              administrators in PBSI.
             </p>
 
             {/* CTA buttons */}
-            <div className="flex flex-col sm:flex-row justify-center gap-4">
+            <div className="flex flex-col sm:flex-row justify-center items-center gap-5">
               <Button
                 onClick={() => navigate('/login')}
-                className="w-full sm:w-auto bg-primary text-white rounded-2xl px-10 py-4 font-bold text-lg hover:-translate-y-1 hover:shadow-2xl hover:shadow-primary/40 active:scale-95 transition-all duration-300"
+                className="w-full sm:w-auto bg-primary text-white px-14 py-6 rounded-2xl font-bold text-xl transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-primary/40 active:scale-95"
               >
                 Sign in
               </Button>
+
               <button
                 onClick={() => navigate('/register')}
-                className="w-full sm:w-auto bg-site-card/60 backdrop-blur-sm text-site-text border-2 border-site-border rounded-2xl px-10 py-4 font-bold text-lg hover:bg-primary hover:text-white active:scale-95 transition-all duration-300"
+                className="w-full sm:w-auto bg-site-card/60 backdrop-blur-sm text-site-text border-2 border-site-border px-14 py-6 rounded-2xl font-bold text-xl transition-all duration-300 hover:-translate-y-1 hover:bg-site-card hover:border-primary/20 hover:shadow-xl hover:shadow-primary/10 active:scale-95"
               >
                 Create account
               </button>
@@ -94,14 +87,11 @@ export default function Home() {
           {/* Role cards */}
           <section className="mt-24 md:mt-32">
             <div className="text-center mb-16">
-              <h2 className="text-primary font-bold uppercase tracking-widest text-xs md:text-sm mb-3">
-                Who is PBSI for?
-              </h2>
               <h3 className="text-3xl md:text-5xl font-extrabold text-site-text leading-tight">
-                Built for every role in your school
+                Built for every role in PBSI
               </h3>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8 mb-16">
               {roleCards.map((role) => (
                 <div
                   key={role.title}
@@ -116,12 +106,6 @@ export default function Home() {
                   <p className="text-site-muted text-base leading-relaxed font-medium flex-grow">
                     {role.description}
                   </p>
-                  <button
-                    onClick={() => navigate('/login')}
-                    className="mt-auto inline-flex items-center gap-2 text-primary font-bold text-sm uppercase tracking-widest hover:gap-4 transition-all duration-300"
-                  >
-                    Enter portal <ArrowRight className="w-4 h-4" />
-                  </button>
                 </div>
               ))}
             </div>

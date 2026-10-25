@@ -7,20 +7,24 @@ function cva(
   config?: { variants?: Record<string, Record<string, string>>; defaultVariants?: Record<string, string> },
 ) {
   return (props: Record<string, any> = {}) => {
+    // Merge defaultVariants so they apply when variant/size are not explicitly passed
+    const mergedProps = { ...config?.defaultVariants, ...props };
     let classes = base;
     if (config?.variants) {
       Object.entries(config.variants).forEach(([key, variants]) => {
-        const val = props[key];
+        const val = mergedProps[key];
         if (val && variants[val]) classes += ` ${variants[val]}`;
       });
     }
-    if (props.class) classes += ` ${props.class}`;
+    // Support React's className convention (and `class` for compatibility)
+    const manualClass = mergedProps.className ?? mergedProps.class;
+    if (manualClass) classes += ` ${manualClass}`;
     return classes;
   };
 }
 
 const buttonVariants = cva(
-  'inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50',
+  'inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50',
   {
     variants: {
       variant: {
