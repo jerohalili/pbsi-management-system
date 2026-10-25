@@ -6,7 +6,7 @@
   "main": "dist/server.js",
   "type": "module",
   "scripts": {
-    "dev": "node --env-file=.env --watch --experimental-specifier-resolution=node --loader ts-node/esm src/server.ts",
+    "dev": "set TS_NODE_TRANSPILE_ONLY=true&& node --env-file=.env --watch --experimental-specifier-resolution=node --loader ts-node/esm src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit"
