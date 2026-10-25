@@ -24,7 +24,7 @@ const navItems: Array<{
   icon: React.ReactNode;
   roles: ('admin' | 'teacher' | 'student' | 'parent')[];
 }> = [
-  { label: 'Dashboard', href: '/', icon: <LayoutDashboard size={18} />, roles: ['admin', 'teacher', 'student', 'parent'] },
+  { label: 'Dashboard', href: '/dashboard', icon: <LayoutDashboard size={18} />, roles: ['admin', 'teacher', 'student', 'parent'] },
   { label: 'Students', href: '/students', icon: <Users size={18} />, roles: ['admin', 'teacher'] },
   { label: 'Courses', href: '/courses', icon: <BookOpen size={18} />, roles: ['admin', 'teacher', 'student'] },
   { label: 'Assignments', href: '/assignments', icon: <FileText size={18} />, roles: ['admin', 'teacher', 'student'] },
@@ -130,18 +130,12 @@ export function TopNav() {
   return (
     <header className="sticky top-0 z-50 flex h-16 items-center justify-between border-b border-input bg-background/95 backdrop-blur px-4">
       <div className="flex items-center gap-4">
-        <h1 className="text-lg font-semibold tracking-tight">PBSI</h1>
-      </div>
-      <div className="flex items-center gap-3">
         <span className="hidden sm:block text-sm text-muted-foreground">
           {(user?.role ?? '').charAt(0).toUpperCase() + (user?.role ?? '').slice(1)} Portal
         </span>
-        <div className="flex items-center gap-2">
-          <span className="hidden sm:block text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            {user?.email}
-          </span>
-          <AvatarBadge />
-        </div>
+      </div>
+      <div className="flex items-center gap-2">
+        <AvatarBadge />
       </div>
     </header>
   );
