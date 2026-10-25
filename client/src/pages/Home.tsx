@@ -36,6 +36,12 @@ export default function Home() {
   const { user, isAuthenticated, isLoading } = useAuth();
   const navigate = useNavigate();
 
+  // Hooks must be called in the same order on every render, before any early returns.
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      navigate('/dashboard');
+    }
+  }, [user, isAuthenticated, navigate]);
   if (forceLoading || isLoading) {
     return (
       <div className="min-h-screen w-full bg-site-bg flex items-center justify-center px-4">
@@ -125,15 +131,6 @@ export default function Home() {
       </div>
     );
   }
-
-  const role = (user?.role as string) ?? 'student';
-  useEffect(() => {
-    if (isAuthenticated && user) {
-      const target =
-        role === 'admin' ? '/students' : role === 'teacher' ? '/courses' : '/dashboard';
-      navigate(target);
-    }
-  }, [user, isAuthenticated, navigate, role]);
 
   return null;
 }

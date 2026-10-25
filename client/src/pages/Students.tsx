@@ -21,7 +21,6 @@ export default function StudentsPage() {
   const { data, isLoading } = useGet<{ students: Student[] }>(
     ['students'],
     `/api/students?search=${encodeURIComponent(search)}`,
-    { enabled: false },
   );
 
   const students = data?.students ?? [];

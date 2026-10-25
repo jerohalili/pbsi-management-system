@@ -58,11 +58,6 @@ export async function register(req: Request, res: Response): Promise<void> {
       INSERT INTO students (user_id, student_id)
       VALUES (${user.id}, ${user.id})
     `;
-  } else if (role === 'parent') {
-    await sql`
-      INSERT INTO parents (user_id, relationship)
-      VALUES (${user.id}, 'parent')
-    `;
   }
 
   const accessToken = signAccessToken({

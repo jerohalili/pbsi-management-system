@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { createContext, useContext, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import useAuth from '@/hooks/useAuth.ts';
 import {
@@ -18,28 +18,50 @@ import {
   Award,
 } from 'lucide-react';
 
+const SidebarCollapsedContext = createContext<{
+  collapsed: boolean;
+  setCollapsed: React.Dispatch<React.SetStateAction<boolean>>;
+} | undefined>(undefined);
+
+export function SidebarProvider({ children }: { children: React.ReactNode }) {
+  const [collapsed, setCollapsed] = useState(false);
+  return (
+    <SidebarCollapsedContext.Provider value={{ collapsed, setCollapsed }}>
+      {children}
+    </SidebarCollapsedContext.Provider>
+  );
+}
+
+export function useSidebarCollapsed() {
+  const ctx = useContext(SidebarCollapsedContext);
+  if (ctx === undefined) {
+    throw new Error('useSidebarCollapsed must be used within SidebarProvider');
+  }
+  return ctx;
+}
+
 const navItems: Array<{
   label: string;
   href: string;
   icon: React.ReactNode;
-  roles: ('admin' | 'teacher' | 'student' | 'parent')[];
+  roles: ('admin' | 'teacher' | 'student')[];
 }> = [
-  { label: 'Dashboard', href: '/dashboard', icon: <LayoutDashboard size={18} />, roles: ['admin', 'teacher', 'student', 'parent'] },
+  { label: 'Dashboard', href: '/dashboard', icon: <LayoutDashboard size={18} />, roles: ['admin', 'teacher', 'student'] },
   { label: 'Students', href: '/students', icon: <Users size={18} />, roles: ['admin', 'teacher'] },
   { label: 'Courses', href: '/courses', icon: <BookOpen size={18} />, roles: ['admin', 'teacher', 'student'] },
   { label: 'Assignments', href: '/assignments', icon: <FileText size={18} />, roles: ['admin', 'teacher', 'student'] },
   { label: 'Quizzes', href: '/quizzes', icon: <ClipboardList size={18} />, roles: ['admin', 'teacher', 'student'] },
-  { label: 'Attendance', href: '/attendance', icon: <Calendar size={18} />, roles: ['admin', 'teacher', 'student', 'parent'] },
-  { label: 'Timetable', href: '/timetable', icon: <BarChart3 size={18} />, roles: ['admin', 'teacher', 'student', 'parent'] },
-  { label: 'Grades', href: '/grades', icon: <Award size={18} />, roles: ['admin', 'teacher', 'student', 'parent'] },
-  { label: 'Discussions', href: '/discussions', icon: <MessageCircle size={18} />, roles: ['admin', 'teacher', 'student', 'parent'] },
-  { label: 'Notifications', href: '/notifications', icon: <Bell size={18} />, roles: ['admin', 'teacher', 'student', 'parent'] },
+  { label: 'Attendance', href: '/attendance', icon: <Calendar size={18} />, roles: ['admin', 'teacher', 'student'] },
+  { label: 'Timetable', href: '/timetable', icon: <BarChart3 size={18} />, roles: ['admin', 'teacher', 'student'] },
+  { label: 'Grades', href: '/grades', icon: <Award size={18} />, roles: ['admin', 'teacher', 'student'] },
+  { label: 'Discussions', href: '/discussions', icon: <MessageCircle size={18} />, roles: ['admin', 'teacher', 'student'] },
+  { label: 'Notifications', href: '/notifications', icon: <Bell size={18} />, roles: ['admin', 'teacher', 'student'] },
   { label: 'Audit Logs', href: '/audit-logs', icon: <ShieldAlert size={18} />, roles: ['admin'] },
 ];
 
 export function Sidebar() {
   const { user, logout } = useAuth();
-  const [collapsed, setCollapsed] = useState(false);
+  const { collapsed, setCollapsed } = useSidebarCollapsed();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -153,10 +175,15 @@ function AvatarBadge() {
 }
 
 export function AdminLayout({ children }: { children: React.ReactNode }) {
+  const { collapsed } = useSidebarCollapsed();
   return (
     <div className="min-h-screen bg-background">
       <Sidebar />
-      <div className={`md:pl-64 ${/* collapsed */ 'pl-16'} transition-all duration-300`}>
+      <div
+        className={`transition-all duration-300 ${
+          collapsed ? 'pl-16' : 'md:pl-64 pl-16'
+        }`}
+      >
         <TopNav />
         <main className="p-4 md:p-6">{children}</main>
       </div>
@@ -165,10 +192,15 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
 }
 
 export function TeacherLayout({ children }: { children: React.ReactNode }) {
+  const { collapsed } = useSidebarCollapsed();
   return (
     <div className="min-h-screen bg-background">
       <Sidebar />
-      <div className={`md:pl-64 ${/* collapsed */ 'pl-16'} transition-all duration-300`}>
+      <div
+        className={`transition-all duration-300 ${
+          collapsed ? 'pl-16' : 'md:pl-64 pl-16'
+        }`}
+      >
         <TopNav />
         <main className="p-4 md:p-6">{children}</main>
       </div>
@@ -184,10 +216,4 @@ export function StudentLayout({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function ParentLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="min-h-screen bg-background">
-      <div className="p-4 md:p-6">{children}</div>
-    </div>
-  );
-}
+

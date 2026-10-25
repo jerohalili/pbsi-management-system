@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState, useCallback } from 'rea
 import api from '@/lib/api.ts';
 import { useNavigate } from 'react-router-dom';
 
-export type UserRole = 'admin' | 'teacher' | 'student' | 'parent';
+export type UserRole = 'admin' | 'teacher' | 'student';
 
 export interface AuthUser {
   id: string;

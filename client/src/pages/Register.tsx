@@ -114,12 +114,11 @@ export default function Register() {
                 <option value="admin">Admin</option>
                 <option value="teacher">Teacher</option>
                 <option value="student">Student</option>
-                <option value="parent">Parent</option>
               </select>
             </div>
             <Button
               type="submit"
-              className="w-full bg-primary text-white px-8 py-4 rounded-2xl font-bold text-base disabled:opacity-70 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-primary/40 active:scale-95"
+              className="w-full bg-primary text-white px-8 py-4 rounded-2xl font-bold text-base disabled:opacity-70 transition-all duration-300 hover:bg-blue-700 active:scale-95"
               disabled={loading}
             >
               {loading ? 'Creating account…' : 'Create account'}
