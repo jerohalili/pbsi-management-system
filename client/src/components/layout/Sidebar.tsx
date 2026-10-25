@@ -102,13 +102,16 @@ export function Sidebar() {
 
       <div className="p-3 border-t border-input">
         <div className="flex items-center gap-3 p-2">
-          <div className="w-8 h-8 rounded-full bg-muted overflow-hidden">
-            <img src={user?.avatar_url || ''} alt="" className="w-full h-full object-cover" />
-          </div>
+          <AvatarBadge />
           {!collapsed && (
             <div className="flex flex-col min-w-0">
-              <span className="text-sm font-medium truncate">{user?.email}</span>
-              <span className="text-xs text-muted-foreground truncate">{user?.role}</span>
+              <span className="text-sm font-medium truncate">
+                {user?.first_name} {user?.last_name}
+              </span>
+              <span className="text-xs text-muted-foreground truncate">{user?.email}</span>
+              <span className="text-xs text-muted-foreground truncate capitalize">
+                {user?.role}
+              </span>
             </div>
           )}
         </div>
@@ -133,9 +136,6 @@ export function TopNav() {
         <span className="hidden sm:block text-sm text-muted-foreground">
           {(user?.role ?? '').charAt(0).toUpperCase() + (user?.role ?? '').slice(1)} Portal
         </span>
-      </div>
-      <div className="flex items-center gap-2">
-        <AvatarBadge />
       </div>
     </header>
   );
