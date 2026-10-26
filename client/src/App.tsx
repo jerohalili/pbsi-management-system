@@ -2,6 +2,7 @@ import React from 'react';
 import {
   Routes,
   Route,
+  Outlet,
   useNavigate,
   useLocation,
 } from 'react-router-dom';
@@ -42,7 +43,7 @@ function RoleLayout({ children }: { children?: React.ReactNode }) {
   const { user } = useAuth();
   const Layout =
     user && LayoutByRole[user.role as Role] ? LayoutByRole[user.role as Role] : StudentLayout;
-  return <Layout>{children}</Layout>;
+  return <Layout>{children ?? <Outlet />}</Layout>;
 }
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
