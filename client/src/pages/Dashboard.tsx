@@ -1,19 +1,88 @@
 import useAuth from '@/hooks/useAuth.ts';
+import { useGet } from '@/hooks/useApi.ts';
 import { Card } from '@/components/ui/card.tsx';
-import { Users, BookOpen, Award, Calendar, Clock, Bell, ShieldAlert } from 'lucide-react';
+import { Button } from '@/components/ui/button.tsx';
+import { Skeleton } from '@/components/ui/skeleton.tsx';
+import {
+  Users,
+  BookOpen,
+  Award,
+  Calendar,
+  Bell,
+  ShieldAlert,
+  GraduationCap,
+  ClipboardCheck,
+} from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { formatDistanceToNow } from 'date-fns';
+
+type DashboardRole = 'admin' | 'teacher' | 'student';
+
+interface ActivityItem {
+  id: string;
+  title: string;
+  created_at: string;
+}
+
+interface DashboardResponse {
+  role: DashboardRole;
+  stats: Record<string, number | null>;
+  recent_activity: ActivityItem[];
+}
+
+interface StatCardDef {
+  key: string;
+  title: string;
+  icon: React.ReactNode;
+  format?: (value: number) => string;
+}
+
+const iconClass = 'w-5 h-5';
+const percent = (v: number) => `${v}%`;
+
+// Which cards each role sees. Keys match the fields returned by GET /dashboard/stats.
+const STAT_CARDS: Record<DashboardRole, StatCardDef[]> = {
+  admin: [
+    { key: 'students', title: 'Students', icon: <Users className={iconClass} /> },
+    { key: 'courses', title: 'Courses', icon: <BookOpen className={iconClass} /> },
+    { key: 'attendance_today', title: "Today's Attendance", icon: <Calendar className={iconClass} />, format: percent },
+    { key: 'ungraded_submissions', title: 'Ungraded Submissions', icon: <ClipboardCheck className={iconClass} /> },
+  ],
+  teacher: [
+    { key: 'my_courses', title: 'My Courses', icon: <BookOpen className={iconClass} /> },
+    { key: 'students', title: 'Students', icon: <Users className={iconClass} /> },
+    { key: 'attendance_today', title: "Today's Attendance", icon: <Calendar className={iconClass} />, format: percent },
+    { key: 'ungraded_submissions', title: 'Ungraded Submissions', icon: <ClipboardCheck className={iconClass} /> },
+  ],
+  student: [
+    { key: 'gpa', title: 'My GPA', icon: <GraduationCap className={iconClass} />, format: (v) => v.toFixed(2) },
+    { key: 'attendance_overall', title: 'My Attendance', icon: <Calendar className={iconClass} />, format: percent },
+    { key: 'graded_items', title: 'Graded Items', icon: <Award className={iconClass} /> },
+    { key: 'unread_notifications', title: 'Unread Notifications', icon: <Bell className={iconClass} /> },
+  ],
+};
+
+function formatStat(def: StatCardDef, value: number | null | undefined): string {
+  if (value === null || value === undefined) return '—';
+  return def.format ? def.format(value) : value.toLocaleString();
+}
+
+function timeAgo(iso: string): string {
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? '' : formatDistanceToNow(date, { addSuffix: true });
+}
 
 export default function Dashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const role = (user?.role as string) ?? 'student';
 
-  const statCards = [
-    { title: 'Active Students', value: '1,204', icon: <Users className="w-5 h-5" /> },
-    { title: 'Courses', value: '42', icon: <BookOpen className="w-5 h-5" /> },
-    { title: "Today's Attendance", value: '94%', icon: <Calendar className="w-5 h-5" /> },
-    { title: 'Pending Grades', value: '12', icon: <Award className="w-5 h-5" /> },
-  ];
+  const { data, isLoading, isError, refetch } = useGet<DashboardResponse>(
+    ['dashboard-stats', user?.id ?? ''],
+    '/dashboard/stats',
+    { enabled: !!user, retry: 1, staleTime: 30 * 1000 },
+  );
+  const statCards = STAT_CARDS[data?.role ?? (role as DashboardRole)] ?? STAT_CARDS.student;
 
   const quickLinks = role === 'admin'
     ? [
@@ -46,21 +115,36 @@ export default function Dashboard() {
       </div>
 
       {/* Stat cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {statCards.map((card, i) => (
-          <Card key={i} className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-site-muted">{card.title}</p>
-                <p className="text-2xl font-bold text-site-text">{card.value}</p>
+      {isError ? (
+        <Card className="p-6 flex items-center justify-between gap-4">
+          <p className="text-sm text-site-muted">Couldn't load dashboard data.</p>
+          <Button variant="outline" size="sm" onClick={() => refetch()}>
+            Retry
+          </Button>
+        </Card>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {statCards.map((card) => (
+            <Card key={card.key} className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-site-muted">{card.title}</p>
+                  {isLoading ? (
+                    <Skeleton className="h-8 w-16 mt-1" />
+                  ) : (
+                    <p className="text-2xl font-bold text-site-text">
+                      {formatStat(card, data?.stats[card.key])}
+                    </p>
+                  )}
+                </div>
+                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+                  {card.icon}
+                </div>
               </div>
-              <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
-                {card.icon}
-              </div>
-            </div>
-          </Card>
-        ))}
-      </div>
+            </Card>
+          ))}
+        </div>
+      )}
 
       {/* Quick actions */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -86,12 +170,34 @@ export default function Dashboard() {
       <Card className="p-6">
         <div className="flex items-center justify-between mb-6">
           <h2 className="font-bold text-site-text">Recent Activity</h2>
-          <button className="text-sm text-primary hover:underline">View all</button>
+          <button
+            onClick={() => navigate('/notifications')}
+            className="text-sm text-primary hover:underline"
+          >
+            View all
+          </button>
         </div>
         <div className="space-y-4">
-          <ActivityRow icon={<Clock className="w-4 h-4 text-site-muted" />} text="New quiz published in Mathematics 101" time="2 hours ago" />
-          <ActivityRow icon={<Bell className="w-4 h-4 text-site-muted" />} text="Grade posted for Algebra Assignment" time="4 hours ago" />
-          <ActivityRow icon={<Users className="w-4 h-4 text-site-muted" />} text="2 new students enrolled this week" time="1 day ago" />
+          {isLoading ? (
+            <>
+              <Skeleton className="h-8 w-full" />
+              <Skeleton className="h-8 w-full" />
+              <Skeleton className="h-8 w-full" />
+            </>
+          ) : isError ? (
+            <p className="text-sm text-site-muted">Recent activity is unavailable right now.</p>
+          ) : data && data.recent_activity.length > 0 ? (
+            data.recent_activity.map((item) => (
+              <ActivityRow
+                key={item.id}
+                icon={<Bell className="w-4 h-4 text-site-muted" />}
+                text={item.title}
+                time={timeAgo(item.created_at)}
+              />
+            ))
+          ) : (
+            <p className="text-sm text-site-muted">No recent activity.</p>
+          )}
         </div>
       </Card>
     </div>
