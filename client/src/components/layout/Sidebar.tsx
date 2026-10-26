@@ -211,9 +211,18 @@ export function TeacherLayout({ children }: { children: React.ReactNode }) {
 }
 
 export function StudentLayout({ children }: { children: React.ReactNode }) {
+  const { collapsed } = useSidebarCollapsed();
   return (
     <div className="min-h-screen bg-background">
-      <div className="p-4 md:p-6">{children}</div>
+      <Sidebar />
+      <div
+        className={`transition-all duration-300 ${
+          collapsed ? 'pl-16' : 'md:pl-64 pl-16'
+        }`}
+      >
+        <TopNav />
+        <main className="p-4 md:p-6">{children}</main>
+      </div>
     </div>
   );
 }
