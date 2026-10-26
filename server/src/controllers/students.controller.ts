@@ -13,7 +13,8 @@ export async function listStudents(_req: Request, res: Response): Promise<void> 
 
   const students = await sql`
     SELECT s.id, s.student_id, s.enrollment_date, s.cumulative_gpa,
-           u.id as user_id, u.email,
+           s.subjects_assigned,
+           u.id as user_id, u.email, u.is_active,
            p.first_name, p.last_name, p.phone, p.date_of_birth,
            p.gender, p.address, p.avatar_url
     FROM students s
@@ -35,7 +36,7 @@ export async function getStudent(_req: Request, res: Response): Promise<void> {
   const [student] = await sql`
     SELECT s.id, s.student_id, s.enrollment_date, s.cumulative_gpa,
            s.subjects_assigned,
-           u.id as user_id, u.email,
+           u.id as user_id, u.email, u.is_active,
            p.first_name, p.last_name, p.phone, p.date_of_birth,
            p.gender, p.address, p.avatar_url
     FROM students s

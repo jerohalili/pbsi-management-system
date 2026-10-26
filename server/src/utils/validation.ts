@@ -11,6 +11,38 @@ export const registerSchema = z.object({
   last_name: z.string().min(1, 'Last name is required'),
 });
 
+// Optional text fields: an empty string means "clear this value".
+const optionalText = (max: number) => z.string().trim().max(max).optional();
+
+export const createUserSchema = z.object({
+  email: z.string().trim().email('Invalid email address'),
+  password: z
+    .string()
+    .min(8, 'Password must be at least 8 characters')
+    .max(128),
+  role: z.enum(['admin', 'teacher', 'student']),
+  first_name: z.string().trim().min(1, 'First name is required').max(100),
+  last_name: z.string().trim().min(1, 'Last name is required').max(100),
+  phone: optionalText(30),
+  date_of_birth: z.string().date('Invalid date of birth').optional().or(z.literal('')),
+  address: optionalText(300),
+  // Student number (role = student) or employee number (role = teacher).
+  // Generated automatically when left blank.
+  student_id: optionalText(50),
+  employee_id: optionalText(50),
+});
+
+export const updateUserSchema = createUserSchema
+  .omit({ password: true, role: true })
+  .partial();
+
+export const resetPasswordSchema = z.object({
+  password: z
+    .string()
+    .min(8, 'Password must be at least 8 characters')
+    .max(128),
+});
+
 export const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
   password: z.string().min(1, 'Password is required'),
@@ -94,6 +126,8 @@ export const quizAttemptSchema = z.object({
 
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
+export type CreateUserInput = z.infer<typeof createUserSchema>;
+export type UpdateUserInput = z.infer<typeof updateUserSchema>;
 export type CourseInput = z.infer<typeof courseSchema>;
 export type ModuleInput = z.infer<typeof moduleSchema>;
 export type AssignmentInput = z.infer<typeof assignmentSchema>;

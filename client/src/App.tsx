@@ -15,9 +15,9 @@ import {
 } from '@/components/layout/Sidebar.tsx';
 import Dashboard from '@/pages/Dashboard.tsx';
 import Login from '@/pages/Login.tsx';
-import Register from '@/pages/Register.tsx';
 import Home from '@/pages/Home.tsx';
 import NotFound from '@/pages/NotFound.tsx';
+import Users from '@/pages/Users.tsx';
 import Students from '@/pages/Students.tsx';
 import StudentDetail from '@/pages/StudentDetail.tsx';
 import Courses from '@/pages/Courses.tsx';
@@ -64,10 +64,10 @@ const App = () => {
     <SidebarProvider>
       <Routes>
         <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
         <Route path="/" element={<Home />} />
         <Route element={<RoleLayout />}>
           <Route path="dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+          <Route path="users" element={<ProtectedRoute><Users /></ProtectedRoute>} />
           <Route path="students" element={<ProtectedRoute><Students /></ProtectedRoute>} />
           <Route path="students/:id" element={<ProtectedRoute><StudentDetail /></ProtectedRoute>} />
           <Route path="courses" element={<ProtectedRoute><Courses /></ProtectedRoute>} />

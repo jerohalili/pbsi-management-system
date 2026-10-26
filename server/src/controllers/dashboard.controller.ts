@@ -29,7 +29,7 @@ export async function getDashboardStats(req: Request, res: Response): Promise<vo
   if (user.role === 'admin') {
     statsQuery = sql`
       SELECT
-        (SELECT COUNT(*) FROM students)::int AS students,
+        (SELECT COUNT(*) FROM students st JOIN users su ON su.id = st.user_id WHERE su.is_active = TRUE)::int AS students,
         (SELECT COUNT(*) FROM courses)::int AS courses,
         (SELECT ROUND(
                   100.0 * COUNT(*) FILTER (WHERE status = 'present') /
@@ -47,7 +47,7 @@ export async function getDashboardStats(req: Request, res: Response): Promise<vo
       my_courses AS (SELECT id FROM courses WHERE teacher_id = (SELECT id FROM t))
       SELECT
         (SELECT COUNT(*) FROM my_courses)::int AS my_courses,
-        (SELECT COUNT(*) FROM students)::int AS students,
+        (SELECT COUNT(*) FROM students st JOIN users su ON su.id = st.user_id WHERE su.is_active = TRUE)::int AS students,
         (SELECT ROUND(
                   100.0 * COUNT(*) FILTER (WHERE status = 'present') /
                   NULLIF(COUNT(*) FILTER (WHERE status IN ('present','absent','late')), 0),

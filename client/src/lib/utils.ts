@@ -25,7 +25,9 @@ export function formatDateTime(dateString: string | null | undefined): string {
   });
 }
 
-export function formatGPA(value: number | null | undefined): string {
-  if (value == null) return 'N/A';
-  return value.toFixed(2);
+// Postgres `numeric` columns reach the browser as strings (e.g. "3.50"), so accept both.
+export function formatGPA(value: number | string | null | undefined): string {
+  if (value == null || value === '') return 'N/A';
+  const n = Number(value);
+  return Number.isFinite(n) ? n.toFixed(2) : 'N/A';
 }

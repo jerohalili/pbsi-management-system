@@ -13,7 +13,7 @@ export function errorHandler(
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _next: NextFunction,
 ): void {
-  const statusCode = err.statusCode ?? 500;
+  const statusCode = err instanceof ZodError ? 400 : (err.statusCode ?? 500);
 
   const response: Record<string, unknown> = {
     error: err.message || 'Internal server error',

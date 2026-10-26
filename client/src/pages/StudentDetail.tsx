@@ -1,5 +1,6 @@
 import { useParams } from 'react-router-dom';
 import { useGet } from '@/hooks/useApi.ts';
+import { formatGPA } from '@/lib/utils.ts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card.tsx';
 import { Badge } from '@/components/ui/badge.tsx';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar.tsx';
@@ -9,8 +10,8 @@ interface Student {
   id: string;
   student_id: string;
   enrollment_date: string | null;
-  cumulative_gpa: number | null;
-  subjects_assigned: string[];
+  cumulative_gpa: number | string | null;
+  subjects_assigned: string[] | null;
   user_id: string;
   email: string;
   first_name: string;
@@ -28,7 +29,7 @@ export default function StudentDetailPage() {
 
   const { data, isLoading } = useGet<{ student: Student }>(
     ['student', id],
-    `/api/students/${id}`,
+    `/students/${id}`,
   );
 
   const s = data?.student;
@@ -99,7 +100,7 @@ export default function StudentDetailPage() {
                   Subjects Assigned
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {s.subjects_assigned.map((subj, i) => (
+                  {(s.subjects_assigned ?? []).map((subj, i) => (
                     <Badge key={i} variant="outline">{subj}</Badge>
                   ))}
                 </div>
@@ -116,7 +117,7 @@ export default function StudentDetailPage() {
             </CardHeader>
             <CardContent className="flex flex-col items-center justify-center py-8">
               <div className="text-5xl font-bold">
-                {s.cumulative_gpa?.toFixed(2) ?? 'N/A'}
+                {formatGPA(s.cumulative_gpa)}
               </div>
               <p className="text-muted-foreground text-sm mt-2">
                 Cumulative grade point average across all terms.

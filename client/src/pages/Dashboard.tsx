@@ -9,7 +9,6 @@ import {
   Award,
   Calendar,
   Bell,
-  ShieldAlert,
   GraduationCap,
   ClipboardCheck,
 } from 'lucide-react';
@@ -84,24 +83,6 @@ export default function Dashboard() {
   );
   const statCards = STAT_CARDS[data?.role ?? (role as DashboardRole)] ?? STAT_CARDS.student;
 
-  const quickLinks = role === 'admin'
-    ? [
-        { label: 'Manage Students', href: '/students', icon: <Users className="w-4 h-4" /> },
-        { label: 'View Courses', href: '/courses', icon: <BookOpen className="w-4 h-4" /> },
-        { label: 'Audit Logs', href: '/audit-logs', icon: <ShieldAlert className="w-4 h-4" /> },
-      ]
-    : role === 'teacher'
-    ? [
-        { label: 'View Courses', href: '/courses', icon: <BookOpen className="w-4 h-4" /> },
-        { label: 'Mark Attendance', href: '/attendance', icon: <Calendar className="w-4 h-4" /> },
-        { label: 'Post Grades', href: '/grades', icon: <Award className="w-4 h-4" /> },
-      ]
-    : [
-        { label: 'My Courses', href: '/courses', icon: <BookOpen className="w-4 h-4" /> },
-        { label: 'My Grades', href: '/grades', icon: <Award className="w-4 h-4" /> },
-        { label: 'Attendance', href: '/attendance', icon: <Calendar className="w-4 h-4" /> },
-      ];
-
   return (
     <div className="space-y-8">
       {/* Header */}
@@ -145,26 +126,6 @@ export default function Dashboard() {
           ))}
         </div>
       )}
-
-      {/* Quick actions */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {quickLinks.map((link, i) => (
-          <Card
-            key={i}
-            onClick={() => navigate(link.href)}
-            className="p-6 cursor-pointer hover:bg-primary/5 transition-colors border border-site-border"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
-                {link.icon}
-              </div>
-              <div>
-                <h3 className="font-bold text-site-text">{link.label}</h3>
-              </div>
-            </div>
-          </Card>
-        ))}
-      </div>
 
       {/* Recent activity */}
       <Card className="p-6">

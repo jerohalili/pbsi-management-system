@@ -79,13 +79,7 @@ export default function Login() {
           </form>
 
           <div className="mt-8 pt-6 border-t border-site-border flex items-center justify-center gap-2 text-sm text-site-muted">
-            <span>Don't have an account?</span>
-            <button
-              onClick={() => navigate('/register')}
-              className="text-primary font-medium hover:underline"
-            >
-              Create account
-            </button>
+            <span>Need an account? Contact your school administrator.</span>
           </div>
         </div>
       </div>
