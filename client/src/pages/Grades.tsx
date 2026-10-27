@@ -2,6 +2,7 @@ import useAuth from '@/hooks/useAuth.ts';
 import { useEffect, useState } from 'react';
 
 import api from '@/lib/api.ts';
+import { formatGPA } from '@/lib/utils.ts';
 import { useToast } from '@/components/ui/toast.tsx';
 
 interface Grade {
@@ -35,8 +36,8 @@ export default function GradesPage() {
   async function fetchGrades() {
     try {
       const [gRes, gpaRes] = await Promise.all([
-        api.get<{ grades: Grade[] }>('/api/grades'),
-        api.get<{ gpa: GPA }>('/api/grades/gpa/me'),
+        api.get<{ grades: Grade[] }>('/grades'),
+        api.get<{ gpa: GPA }>('/grades/gpa/me'),
       ]);
       setGrades(gRes.data.grades);
       setGPA(gpaRes.data.gpa);
@@ -71,7 +72,7 @@ export default function GradesPage() {
             <h3 className="font-bold text-site-text mb-4">Cumulative GPA</h3>
             <div className="flex items-center justify-between">
               <div className="text-4xl font-bold text-site-text">
-                {gpa?.cumulative_gpa?.toFixed(2) ?? 'N/A'}
+                {formatGPA(gpa?.cumulative_gpa)}
               </div>
               <div className="text-right">
                 <div className="text-xs text-site-muted">Total Assessments</div>

@@ -30,7 +30,7 @@ export default function DiscussionsPage() {
 
   async function fetchThreads() {
     try {
-      const res = await api.get<{ threads: Thread[] }>('/api/discussions/course-demo');
+      const res = await api.get<{ threads: Thread[] }>('/discussions/course-demo');
       setThreads(res.data.threads);
     } catch (err: any) {
       toast({ title: 'Failed to load discussions', description: err.message, variant: 'destructive' });
@@ -41,7 +41,7 @@ export default function DiscussionsPage() {
     e.preventDefault();
     if (!title.trim()) return;
     try {
-      await api.post('/api/discussions', { course_id: 'demo', title });
+      await api.post('/discussions', { course_id: 'demo', title });
       setTitle('');
       fetchThreads();
     } catch (err: any) {

@@ -23,6 +23,7 @@ import StudentDetail from '@/pages/StudentDetail.tsx';
 import Courses from '@/pages/Courses.tsx';
 import CourseDetail from '@/pages/CourseDetail.tsx';
 import Assignments from '@/pages/Assignments.tsx';
+import AssignmentDetail from '@/pages/AssignmentDetail.tsx';
 import Quizzes from '@/pages/Quizzes.tsx';
 import Attendance from '@/pages/Attendance.tsx';
 import Timetable from '@/pages/Timetable.tsx';
@@ -71,10 +72,9 @@ const App = () => {
           <Route path="students" element={<ProtectedRoute><Students /></ProtectedRoute>} />
           <Route path="students/:id" element={<ProtectedRoute><StudentDetail /></ProtectedRoute>} />
           <Route path="courses" element={<ProtectedRoute><Courses /></ProtectedRoute>} />
-          <Route path="courses/new" element={<ProtectedRoute><CourseDetail /></ProtectedRoute>} />
           <Route path="courses/:id" element={<ProtectedRoute><CourseDetail /></ProtectedRoute>} />
-          <Route path="courses/:id/modules/new" element={<ProtectedRoute><CourseDetail /></ProtectedRoute>} />
           <Route path="assignments" element={<ProtectedRoute><Assignments /></ProtectedRoute>} />
+          <Route path="assignments/:id" element={<ProtectedRoute><AssignmentDetail /></ProtectedRoute>} />
           <Route path="quizzes" element={<ProtectedRoute><Quizzes /></ProtectedRoute>} />
           <Route path="attendance" element={<ProtectedRoute><Attendance /></ProtectedRoute>} />
           <Route path="timetable" element={<ProtectedRoute><Timetable /></ProtectedRoute>} />

@@ -37,8 +37,8 @@ export default function AttendancePage() {
   async function fetchAttendance() {
     try {
       const [recRes, sumRes] = await Promise.all([
-        api.get<{ attendance: AttendanceRecord[] }>(`/api/attendance?date=${date}`),
-        api.get<{ summary: Summary }>(`/api/attendance/summary/student-me`),
+        api.get<{ attendance: AttendanceRecord[] }>(`/attendance?date=${date}`),
+        api.get<{ summary: Summary }>(`/attendance/summary/me`),
       ]);
       setRecords(recRes.data.attendance);
       setSummary(sumRes.data.summary);

@@ -73,6 +73,34 @@ export const assignmentSchema = z.object({
   max_score: z.coerce.number().positive('Max score must be positive'),
 });
 
+// Assignments are created/edited by teachers. Links are checked for http(s) in the controller;
+// an empty string clears an optional value.
+export const createAssignmentSchema = z.object({
+  module_id: z.string().uuid('Invalid module ID'),
+  title: z.string().trim().min(1, 'Assignment title is required').max(200),
+  instructions: z.string().max(10000).optional(),
+  due_date: z.string().datetime({ offset: true, message: 'Invalid due date' }),
+  max_score: z.coerce
+    .number()
+    .positive('Max score must be positive')
+    .max(1000, 'Max score is too large')
+    .default(100),
+  attachment_url: z.string().trim().max(2000).optional(),
+});
+
+export const updateAssignmentSchema = createAssignmentSchema.omit({ module_id: true }).partial();
+
+export const submitAssignmentSchema = z.object({
+  assignment_id: z.string().uuid('Invalid assignment ID'),
+  file_url: z.string().trim().url('Please enter a valid link').max(2000),
+});
+
+// The upper bound is the assignment's own max score, which is checked in the controller.
+export const gradeSubmissionSchema = z.object({
+  score: z.coerce.number().min(0, 'Score can’t be negative'),
+  feedback: z.string().trim().max(2000).optional(),
+});
+
 export const gradeSchema = z.object({
   score: z.coerce.number().min(0).max(100),
   feedback: z.string().optional(),
@@ -132,6 +160,8 @@ export type CourseInput = z.infer<typeof courseSchema>;
 export type ModuleInput = z.infer<typeof moduleSchema>;
 export type AssignmentInput = z.infer<typeof assignmentSchema>;
 export type GradeInput = z.infer<typeof gradeSchema>;
+export type CreateAssignmentInput = z.infer<typeof createAssignmentSchema>;
+export type GradeSubmissionInput = z.infer<typeof gradeSubmissionSchema>;
 export type AttendanceInput = z.infer<typeof attendanceSchema>;
 export type TimetableInput = z.infer<typeof timetableSchema>;
 export type NotificationInput = z.infer<typeof notificationSchema>;

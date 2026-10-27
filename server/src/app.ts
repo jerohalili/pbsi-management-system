@@ -20,6 +20,7 @@ import discussionRoutes from './routes/discussions.routes.js';
 import notificationRoutes from './routes/notifications.routes.js';
 import auditLogRoutes from './routes/auditLogs.routes.js';
 import dashboardRoutes from './routes/dashboard.routes.js';
+import teacherRoutes from './routes/teachers.routes.js';
 
 const app = express();
 
@@ -79,6 +80,7 @@ app.use('/api/discussions', discussionRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/audit-logs', auditLogRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/teachers', teacherRoutes);
 
 // 404
 app.use((_req, res) => {

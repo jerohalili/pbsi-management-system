@@ -28,7 +28,7 @@ export default function AuditLogsPage() {
 
   async function fetchAuditLogs() {
     try {
-      const res = await api.get<{ audit_logs: AuditLog[] }>('/api/audit-logs');
+      const res = await api.get<{ audit_logs: AuditLog[] }>('/audit-logs');
       setLogs(res.data.audit_logs);
     } catch (err: any) {
       toast({ title: 'Failed to load audit logs', description: err.message, variant: 'destructive' });

@@ -26,7 +26,7 @@ export default function NotificationsPage() {
 
   async function fetchNotifications() {
     try {
-      const res = await api.get<{ notifications: Notification[] }>('/api/notifications');
+      const res = await api.get<{ notifications: Notification[] }>('/notifications');
       setNotifications(res.data.notifications);
     } catch (err: any) {
       toast({ title: 'Failed to load notifications', description: err.message, variant: 'destructive' });
@@ -35,7 +35,7 @@ export default function NotificationsPage() {
 
   async function markRead(id: string) {
     try {
-      await api.patch(`/api/notifications/${id}/read`);
+      await api.patch(`/notifications/${id}/read`);
       setNotifications(notifications.map((n) => (n.id === id ? { ...n, is_read: true } : n)));
     } catch (err: any) {
       toast({ title: 'Failed to mark read', description: err.message, variant: 'destructive' });

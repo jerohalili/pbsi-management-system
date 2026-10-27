@@ -1,10 +1,15 @@
+import { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { useQueryClient } from 'react-query';
+import { BookOpen, Plus } from 'lucide-react';
 import useAuth from '@/hooks/useAuth.ts';
-import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Button } from '@/components/ui/button.tsx';
-import { BookOpen, Plus, Clock } from 'lucide-react';
-import api from '@/lib/api.ts';
+import { useGet } from '@/hooks/useApi.ts';
 import { useToast } from '@/components/ui/toast.tsx';
+import { Button } from '@/components/ui/button.tsx';
+import { Badge } from '@/components/ui/badge.tsx';
+import { Card } from '@/components/ui/card.tsx';
+import { Skeleton } from '@/components/ui/skeleton.tsx';
+import { CourseFormDialog } from '@/components/courses/CourseFormDialog.tsx';
 
 interface Course {
   id: string;
@@ -12,116 +17,102 @@ interface Course {
   name: string;
   description: string | null;
   credits: number;
-  teacher_first_name: string;
-  teacher_last_name: string;
+  teacher_id: string;
+  teacher_first_name: string | null;
+  teacher_last_name: string | null;
+  is_mine: boolean;
 }
 
 export default function CoursesPage() {
-  const { user, isAuthenticated, isLoading } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [courses, setCourses] = useState<Course[]>([]);
+  const queryClient = useQueryClient();
+  const [creating, setCreating] = useState(false);
 
-  useEffect(() => {
-    if (!isAuthenticated) return;
-    fetchCourses();
-  }, [isAuthenticated]);
+  const { data, isLoading, isError, refetch } = useGet<{ courses: Course[] }>(
+    ['courses'],
+    '/courses',
+  );
 
-  async function fetchCourses() {
-    try {
-      const res = await api.get<{ courses: Course[] }>('/api/courses');
-      setCourses(res.data.courses);
-    } catch (err: any) {
-      toast({ title: 'Failed to load courses', description: err.message, variant: 'destructive' });
-    }
-  }
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen w-full bg-site-bg flex items-center justify-center px-4">
-        <div className="flex flex-col items-center gap-2 animate-pulse">
-          <div className="w-10 h-10 rounded-full bg-site-border"></div>
-          <p className="text-site-muted text-sm">Loading…</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!isAuthenticated) return null;
-
-  const canCreate = user?.role === 'admin' || user?.role === 'teacher';
+  const isAdmin = user?.role === 'admin';
+  const canCreate = isAdmin || user?.role === 'teacher';
+  const courses = data?.courses ?? [];
 
   return (
-    <div className="min-h-screen w-full bg-site-bg px-4 py-12">
-      <div className="max-w-5xl mx-auto">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
-          <div>
-            <h1 className="text-2xl font-bold text-site-text">Courses</h1>
-            <p className="text-site-muted">Browse available courses and modules.</p>
-          </div>
-          {canCreate && (
-            <Button
-              onClick={() => navigate('/courses/new')}
-              className="bg-primary text-white hover:bg-blue-700 px-6 py-2"
-            >
-              <Plus className="w-4 h-4 mr-2" /> New Course
-            </Button>
-          )}
+    <div className="space-y-6">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold">Courses</h1>
+          <p className="text-muted-foreground">
+            {canCreate ? 'Create and manage courses and their modules.' : 'Browse your courses and their modules.'}
+          </p>
         </div>
-
-        {courses.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-center">
-            <BookOpen className="w-16 h-16 text-site-muted/30 mb-4" />
-            <h3 className="font-bold text-site-text mb-2">No courses yet</h3>
-            <p className="text-site-muted">Courses will appear here once they are created.</p>
-            {canCreate && (
-              <Button
-                onClick={() => navigate('/courses/new')}
-                className="mt-4 bg-primary text-white hover:bg-blue-700 px-6 py-2"
-              >
-                Create your first course
-              </Button>
-            )}
-          </div>
-        ) : (
-          <div className="grid gap-4 md:grid-cols-3">
-            {courses.map((c) => (
-              <Card key={c.id} onClick={() => navigate(`/courses/${c.id}`)}>
-                <div className="p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="font-bold text-site-text">{c.code}</h3>
-                    <span className="text-xs font-medium bg-primary/10 text-primary px-2 py-1 rounded">
-                      {c.credits} cr
-                    </span>
-                  </div>
-                  <h2 className="text-lg font-semibold text-site-text mb-2">{c.name}</h2>
-                  {c.description && (
-                    <p className="text-site-muted text-sm line-clamp-2 mb-4">{c.description}</p>
-                  )}
-                  <div className="flex items-center gap-2 text-xs text-site-muted">
-                    <Clock className="w-3 h-3 mr-1" />
-                    <span>{c.teacher_first_name} {c.teacher_last_name}</span>
-                  </div>
-                </div>
-              </Card>
-            ))}
-          </div>
+        {canCreate && (
+          <Button onClick={() => setCreating(true)}>
+            <Plus className="w-4 h-4 mr-2" /> New Course
+          </Button>
         )}
       </div>
+
+      {isLoading ? (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {[0, 1, 2].map((i) => (
+            <Skeleton key={i} className="h-40 w-full" />
+          ))}
+        </div>
+      ) : isError ? (
+        <Card className="p-6 flex items-center justify-between gap-4">
+          <p className="text-sm text-muted-foreground">Couldn’t load courses.</p>
+          <Button variant="outline" size="sm" onClick={() => refetch()}>
+            Retry
+          </Button>
+        </Card>
+      ) : courses.length === 0 ? (
+        <Card className="p-10 text-center text-muted-foreground">
+          <BookOpen className="w-8 h-8 mx-auto mb-3 opacity-60" />
+          <p>No courses yet.</p>
+          {canCreate && <p className="text-sm mt-1">Use “New Course” to create the first one.</p>}
+        </Card>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {courses.map((c) => (
+            <Link key={c.id} to={`/courses/${c.id}`} className="block focus:outline-none focus:ring-2 focus:ring-ring rounded-xl">
+              <Card className="p-5 h-full hover:border-primary/40 transition-colors">
+                <div className="flex items-center justify-between gap-2 mb-3">
+                  <Badge variant="outline">{c.code}</Badge>
+                  <div className="flex items-center gap-2">
+                    {c.is_mine && <Badge variant="success">Your course</Badge>}
+                    <span className="text-xs text-muted-foreground">
+                      {c.credits} {c.credits === 1 ? 'credit' : 'credits'}
+                    </span>
+                  </div>
+                </div>
+                <h2 className="font-bold text-lg leading-snug">{c.name}</h2>
+                <p className="text-sm text-muted-foreground mt-1 line-clamp-2 min-h-[2.5rem]">
+                  {c.description || 'No description.'}
+                </p>
+                <p className="text-sm mt-4">
+                  <span className="text-muted-foreground">Teacher: </span>
+                  {`${c.teacher_first_name ?? ''} ${c.teacher_last_name ?? ''}`.trim() || '—'}
+                </p>
+              </Card>
+            </Link>
+          ))}
+        </div>
+      )}
+
+      <CourseFormDialog
+        open={creating}
+        onOpenChange={setCreating}
+        mode="create"
+        isAdmin={isAdmin}
+        onSaved={(course) => {
+          queryClient.invalidateQueries('courses');
+          toast({ title: 'Course created', variant: 'success' });
+          navigate(`/courses/${course.id}`);
+        }}
+      />
     </div>
   );
 }
-
-function Card({ children, className, onClick }: { children: React.ReactNode; className?: string; onClick?: () => void }) {
-  return (
-    <div
-      className={`rounded-xl bg-site-card border border-site-border p-6 cursor-pointer hover:bg-primary/5 transition-colors ${className}`}
-      onClick={onClick}
-      role="button"
-      tabIndex={0}
-    >
-      {children}
-    </div>
-  );
-}
-

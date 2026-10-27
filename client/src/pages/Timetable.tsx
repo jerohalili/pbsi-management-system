@@ -31,7 +31,7 @@ export default function TimetablePage() {
 
   async function fetchTimetable() {
     try {
-      const res = await api.get<{ timetable: TimetableEntry[] }>('/api/timetable');
+      const res = await api.get<{ timetable: TimetableEntry[] }>('/timetable');
       setEntries(res.data.timetable);
     } catch (err: any) {
       toast({ title: 'Failed to load timetable', description: err.message, variant: 'destructive' });

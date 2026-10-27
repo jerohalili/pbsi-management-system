@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { sql } from '../config/db.js';
 import type { AppError } from '../middleware/errorHandler.js';
+import { optionalInt, optionalUuid } from '../utils/access.js';
 
 export async function listTimetable(_req: Request, res: Response): Promise<void> {
   const { day_of_week, teacher_id, course_id } = _req.query as {
@@ -9,9 +10,9 @@ export async function listTimetable(_req: Request, res: Response): Promise<void>
     course_id?: string;
   };
 
-  const dayParam = day_of_week ?? '';
-  const teacherParam = teacher_id ?? '';
-  const courseParam = course_id ?? '';
+  const dayParam = optionalInt(day_of_week, 'day of week');
+  const teacherParam = optionalUuid(teacher_id, 'teacher id');
+  const courseParam = optionalUuid(course_id, 'course id');
 
   const entries = await sql`
     SELECT t.id, t.day_of_week, t.period_number, t.start_time, t.end_time,
@@ -23,9 +24,9 @@ export async function listTimetable(_req: Request, res: Response): Promise<void>
     JOIN teachers te ON te.id = t.teacher_id
     JOIN users u ON u.id = te.user_id
     JOIN profiles p ON p.user_id = u.id
-    WHERE (${dayParam} = '' OR t.day_of_week = ${dayParam}::int)
-      AND (${teacherParam} = '' OR t.teacher_id = ${teacherParam})
-      AND (${courseParam} = '' OR t.course_id = ${courseParam})
+    WHERE (${dayParam}::text = '' OR t.day_of_week = NULLIF(${dayParam}::text, '')::int)
+      AND (${teacherParam}::text = '' OR t.teacher_id = NULLIF(${teacherParam}::text, '')::uuid)
+      AND (${courseParam}::text = '' OR t.course_id = NULLIF(${courseParam}::text, '')::uuid)
     ORDER BY t.day_of_week ASC, t.period_number ASC
   `;
   res.json({ timetable: entries });

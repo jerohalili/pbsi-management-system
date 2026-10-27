@@ -1,13 +1,45 @@
 import { Request, Response } from 'express';
 import { sql } from '../config/db.js';
-import type { AppError } from '../middleware/errorHandler.js';
+import { courseSchema } from '../utils/validation.js';
+import {
+  assertCanManageCourse,
+  getOwnTeacherId,
+  httpError,
+  parseUuid,
+  rethrowDbError,
+} from '../utils/access.js';
+import type { AuthUser } from '../types/index.js';
 
-export async function listCourses(_req: Request, res: Response): Promise<void> {
+function currentUser(req: Request): AuthUser {
+  if (!req.user) throw httpError(401, 'Not authenticated');
+  return req.user;
+}
+
+async function fetchCourse(id: string, userId: string) {
+  const [course] = await sql`
+    SELECT c.id, c.code, c.name, c.description, c.credits, c.created_at,
+           t.id AS teacher_id,
+           p.first_name AS teacher_first_name,
+           p.last_name AS teacher_last_name,
+           (t.user_id = ${userId}) AS is_mine
+    FROM courses c
+    JOIN teachers t ON t.id = c.teacher_id
+    JOIN users u ON u.id = t.user_id
+    JOIN profiles p ON p.user_id = u.id
+    WHERE c.id = ${id}
+  `;
+  return course;
+}
+
+export async function listCourses(req: Request, res: Response): Promise<void> {
+  const user = currentUser(req);
+
   const courses = await sql`
     SELECT c.id, c.code, c.name, c.description, c.credits, c.created_at,
-           t.id as teacher_id,
-           p.first_name as teacher_first_name,
-           p.last_name as teacher_last_name
+           t.id AS teacher_id,
+           p.first_name AS teacher_first_name,
+           p.last_name AS teacher_last_name,
+           (t.user_id = ${user.id}) AS is_mine
     FROM courses c
     JOIN teachers t ON t.id = c.teacher_id
     JOIN users u ON u.id = t.user_id
@@ -18,102 +50,94 @@ export async function listCourses(_req: Request, res: Response): Promise<void> {
 }
 
 export async function getCourse(req: Request, res: Response): Promise<void> {
-  const { id } = req.params as { id: string };
+  const user = currentUser(req);
+  const id = parseUuid(req.params.id, 'course id');
 
-  const [course] = await sql`
-    SELECT c.id, c.code, c.name, c.description, c.credits, c.created_at,
-           t.id as teacher_id,
-           p.first_name as teacher_first_name,
-           p.last_name as teacher_last_name
-    FROM courses c
-    JOIN teachers t ON t.id = c.teacher_id
-    JOIN users u ON u.id = t.user_id
-    JOIN profiles p ON p.user_id = u.id
-    WHERE c.id = ${id}
+  const course = await fetchCourse(id, user.id);
+  if (!course) throw httpError(404, 'Course not found');
+
+  const modules = await sql`
+    SELECT m.id, m.course_id, m.title, m.rich_description, m.video_url,
+           m.attachment_url, m.order_index, m.created_at
+    FROM modules m
+    WHERE m.course_id = ${id}
+    ORDER BY m.order_index ASC, m.created_at ASC
   `;
-  if (!course) {
-    const err = new Error('Course not found') as AppError;
-    err.statusCode = 404;
-    throw err;
-  }
-  res.json({ course });
+
+  res.json({ course, modules });
 }
 
 export async function createCourse(req: Request, res: Response): Promise<void> {
-  const { code, name, description, credits, teacher_id } = req.body as {
-    code: string;
-    name: string;
-    description?: string;
-    credits: number;
-    teacher_id?: string;
-  };
-  const user = req.user as { id: string; role: string };
+  const user = currentUser(req);
+  // The validation middleware does not replace req.body, so parse again to apply defaults.
+  const input = courseSchema.parse(req.body);
 
-  let resolvedTeacherId = teacher_id;
-
+  let teacherId: string | undefined = input.teacher_id;
   if (user.role === 'teacher') {
-    const [teacher] = await sql`
-      SELECT id FROM teachers WHERE user_id = ${user.id} LIMIT 1
+    const own = await getOwnTeacherId(user.id);
+    if (!own) throw httpError(404, 'Teacher profile not found');
+    teacherId = own;
+  }
+  if (!teacherId) throw httpError(400, 'Please choose the teacher for this course');
+
+  const [teacher] = await sql`SELECT id FROM teachers WHERE id = ${teacherId}`;
+  if (!teacher) throw httpError(404, 'Teacher not found');
+
+  try {
+    const [created] = await sql`
+      INSERT INTO courses (code, name, description, credits, teacher_id)
+      VALUES (${input.code}, ${input.name}, ${input.description || null}, ${input.credits}, ${teacherId})
+      RETURNING id
     `;
-    if (!teacher) {
-      const err = new Error('Teacher profile not found') as AppError;
-      err.statusCode = 404;
-      throw err;
-    }
-    resolvedTeacherId = teacher.id;
+    res.status(201).json({ course: await fetchCourse(created.id as string, user.id) });
+  } catch (err) {
+    rethrowDbError(err, { unique: 'A course with this code already exists' });
   }
-
-  if (!resolvedTeacherId) {
-    const err = new Error('teacher_id is required') as AppError;
-    err.statusCode = 400;
-    throw err;
-  }
-
-  const [course] = await sql`
-    INSERT INTO courses (code, name, description, credits, teacher_id)
-    VALUES (${code}, ${name}, ${description}, ${credits}, ${resolvedTeacherId})
-    RETURNING id, code, name, description, credits, teacher_id, created_at
-  `;
-  res.status(201).json({ course });
 }
 
 export async function updateCourse(req: Request, res: Response): Promise<void> {
-  const { id } = req.params as { id: string };
-  const { code, name, description, credits } = req.body as {
-    code?: string;
-    name?: string;
-    description?: string;
-    credits?: number;
-  };
+  const user = currentUser(req);
+  const id = parseUuid(req.params.id, 'course id');
+  const input = courseSchema.partial().parse(req.body);
 
-  const [course] = await sql`
-    UPDATE courses
-    SET code = COALESCE(${code}, code),
-        name = COALESCE(${name}, name),
-        description = COALESCE(${description}, description),
-        credits = COALESCE(${credits}, credits)
-    WHERE id = ${id}
-    RETURNING id, code, name, description, credits
-  `;
-  if (!course) {
-    const err = new Error('Course not found') as AppError;
-    err.statusCode = 404;
-    throw err;
+  await assertCanManageCourse(user, id);
+
+  if (input.teacher_id !== undefined) {
+    if (user.role !== 'admin') throw httpError(403, 'Only an administrator can change a course’s teacher');
+    const [teacher] = await sql`SELECT id FROM teachers WHERE id = ${input.teacher_id}`;
+    if (!teacher) throw httpError(404, 'Teacher not found');
   }
-  res.json({ course });
+
+  const descriptionProvided = input.description !== undefined;
+
+  try {
+    await sql`
+      UPDATE courses
+      SET code = COALESCE(${input.code ?? null}, code),
+          name = COALESCE(${input.name ?? null}, name),
+          description = CASE WHEN ${descriptionProvided}::boolean THEN ${input.description || null} ELSE description END,
+          credits = COALESCE(${input.credits ?? null}, credits),
+          teacher_id = COALESCE(${input.teacher_id ?? null}, teacher_id)
+      WHERE id = ${id}
+    `;
+  } catch (err) {
+    rethrowDbError(err, { unique: 'A course with this code already exists' });
+  }
+
+  res.json({ course: await fetchCourse(id, user.id) });
 }
 
 export async function deleteCourse(req: Request, res: Response): Promise<void> {
-  const { id } = req.params as { id: string };
+  const id = parseUuid(req.params.id, 'course id');
 
-  const [course] = await sql`
-    DELETE FROM courses WHERE id = ${id}
-    RETURNING id
-  `;
-  if (!course) {
-    const err = new Error('Course not found') as AppError;
-    err.statusCode = 404;
-    throw err;
+  try {
+    const [course] = await sql`DELETE FROM courses WHERE id = ${id} RETURNING id`;
+    if (!course) throw httpError(404, 'Course not found');
+  } catch (err) {
+    rethrowDbError(err, {
+      foreignKey:
+        'This course still has content (modules, quizzes, grades…) and can’t be deleted. Remove that content first.',
+    });
   }
   res.json({ message: 'Course deleted' });
 }

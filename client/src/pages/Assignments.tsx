@@ -1,99 +1,139 @@
+import { useState } from 'react';
+import { Link } from 'react-router-dom';
+import { ClipboardList } from 'lucide-react';
 import useAuth from '@/hooks/useAuth.ts';
-import { useEffect, useState } from 'react';
-import { FileText, Clock } from 'lucide-react';
-import api from '@/lib/api.ts';
-import { useToast } from '@/components/ui/toast.tsx';
+import { useGet } from '@/hooks/useApi.ts';
+import { Button } from '@/components/ui/button.tsx';
+import { Card } from '@/components/ui/card.tsx';
+import { Skeleton } from '@/components/ui/skeleton.tsx';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table.tsx';
+import { AssignmentStatusBadge } from '@/components/assignments/AssignmentStatusBadge.tsx';
+import type { AssignmentItem } from '@/components/assignments/types.ts';
+import { formatDateTime } from '@/lib/utils.ts';
 
-interface Assignment {
+interface CourseOption {
   id: string;
-  module_id: string;
-  title: string;
-  instructions: string | null;
-  due_date: string;
-  max_score: number;
-  created_at: string;
+  code: string;
+  name: string;
 }
 
+const selectClass =
+  'flex h-10 items-center rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring';
+
 export default function AssignmentsPage() {
-  const { isAuthenticated, isLoading } = useAuth();
-  const { toast } = useToast();
-  const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const { user } = useAuth();
+  const isStudent = user?.role === 'student';
+  const [courseId, setCourseId] = useState('');
 
-  useEffect(() => {
-    if (!isAuthenticated) return;
-    fetchAssignments();
-  }, [isAuthenticated]);
+  const { data: courseData } = useGet<{ courses: CourseOption[] }>(['courses'], '/courses');
+  const { data, isLoading, isError, refetch } = useGet<{ assignments: AssignmentItem[] }>(
+    ['assignments', 'list', courseId],
+    courseId ? `/assignments?course_id=${courseId}` : '/assignments',
+    { keepPreviousData: true },
+  );
 
-  async function fetchAssignments() {
-    try {
-      const res = await api.get<{ assignments: Assignment[] }>('/api/assignments');
-      setAssignments(res.data.assignments);
-    } catch (err: any) {
-      toast({ title: 'Failed to load assignments', description: err.message, variant: 'destructive' });
-    }
-  }
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen w-full bg-site-bg flex items-center justify-center px-4">
-        <div className="flex flex-col items-center gap-2 animate-pulse">
-          <div className="w-10 h-10 rounded-full bg-site-border"></div>
-          <p className="text-site-muted text-sm">Loading…</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!isAuthenticated) return null;
+  const courses = courseData?.courses ?? [];
+  const assignments = data?.assignments ?? [];
 
   return (
-    <div className="min-h-screen w-full bg-site-bg px-4 py-12">
-      <div className="max-w-5xl mx-auto">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
-          <div>
-            <h1 className="text-2xl font-bold text-site-text">Assignments</h1>
-            <p className="text-site-muted">View and manage course assignments.</p>
-          </div>
+    <div className="space-y-6">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold">Assignments</h1>
+          <p className="text-muted-foreground">
+            {isStudent
+              ? 'Hand in your work and see your grades.'
+              : 'Review submissions and grade your students’ work. Add assignments from a course’s modules.'}
+          </p>
         </div>
-
-        {assignments.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-center">
-            <FileText className="w-16 h-16 text-site-muted/30 mb-4" />
-            <h3 className="font-bold text-site-text mb-2">No assignments yet</h3>
-            <p className="text-site-muted">Assignments will appear here once they are created.</p>
-          </div>
-        ) : (
-          <div className="rounded-xl border border-site-border bg-site-card overflow-hidden">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="border-b border-site-border">
-                  <th className="px-6 py-4 text-sm font-bold text-site-muted">Title</th>
-                  <th className="px-6 py-4 text-sm font-bold text-site-muted">Instructions</th>
-                  <th className="px-6 py-4 text-sm font-bold text-site-muted">Due Date</th>
-                  <th className="px-6 py-4 text-sm font-bold text-site-muted">Max Score</th>
-                </tr>
-              </thead>
-              <tbody>
-                {assignments.map((a) => (
-                  <tr key={a.id} className="border-b border-site-border hover:bg-primary/5 transition-colors">
-                    <td className="px-6 py-4">
-                      <div className="font-medium text-site-text">{a.title}</div>
-                    </td>
-                    <td className="px-6 py-4 text-site-muted text-sm">
-                      {a.instructions || '—'}
-                    </td>
-                    <td className="px-6 py-4 text-site-muted text-sm">
-                      <Clock className="w-3 h-3 mr-1" />
-                      {new Date(a.due_date).toLocaleDateString()}
-                    </td>
-                    <td className="px-6 py-4 text-site-text font-medium">{a.max_score}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <select
+          className={selectClass}
+          value={courseId}
+          onChange={(e) => setCourseId(e.target.value)}
+          aria-label="Filter by course"
+        >
+          <option value="">All courses</option>
+          {courses.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.code} · {c.name}
+            </option>
+          ))}
+        </select>
       </div>
+
+      {isLoading ? (
+        <div className="space-y-3">
+          {[0, 1, 2].map((i) => (
+            <Skeleton key={i} className="h-14 w-full" />
+          ))}
+        </div>
+      ) : isError ? (
+        <Card className="p-6 flex items-center justify-between gap-4">
+          <p className="text-sm text-muted-foreground">Couldn’t load assignments.</p>
+          <Button variant="outline" size="sm" onClick={() => refetch()}>
+            Retry
+          </Button>
+        </Card>
+      ) : assignments.length === 0 ? (
+        <Card className="p-10 text-center text-muted-foreground">
+          <ClipboardList className="w-8 h-8 mx-auto mb-3 opacity-60" />
+          <p>No assignments yet.</p>
+        </Card>
+      ) : (
+        <div className="rounded-xl border border-input bg-card overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Assignment</TableHead>
+                <TableHead className="w-48">Due</TableHead>
+                {isStudent ? (
+                  <>
+                    <TableHead className="w-48">Status</TableHead>
+                    <TableHead className="w-28">Score</TableHead>
+                  </>
+                ) : (
+                  <>
+                    <TableHead className="w-24">Max</TableHead>
+                    <TableHead className="w-40">Submissions</TableHead>
+                  </>
+                )}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {assignments.map((a) => (
+                <TableRow key={a.id}>
+                  <TableCell>
+                    <Link to={`/assignments/${a.id}`} className="font-medium hover:underline">
+                      {a.title}
+                    </Link>
+                    <div className="text-sm text-muted-foreground">
+                      {a.course_code} · {a.module_title}
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-sm">{formatDateTime(a.due_date)}</TableCell>
+                  {isStudent ? (
+                    <>
+                      <TableCell>
+                        <AssignmentStatusBadge status={a.status} isLate={a.is_late} />
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {a.grade !== null ? `${a.grade} / ${a.max_score}` : '—'}
+                      </TableCell>
+                    </>
+                  ) : (
+                    <>
+                      <TableCell className="text-sm">{a.max_score}</TableCell>
+                      <TableCell className="text-sm">
+                        {a.can_manage ? `${a.submitted_count ?? 0} handed in · ${a.graded_count ?? 0} graded` : '—'}
+                      </TableCell>
+                    </>
+                  )}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
     </div>
   );
 }

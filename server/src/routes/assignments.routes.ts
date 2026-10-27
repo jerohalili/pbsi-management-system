@@ -10,24 +10,25 @@ import { verifyToken } from '../middleware/verifyToken.js';
 import { restrictTo } from '../middleware/restrictTo.js';
 import { validate } from '../middleware/validate.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
-import { assignmentSchema } from '../utils/validation.js';
+import { createAssignmentSchema, updateAssignmentSchema } from '../utils/validation.js';
 
 const router = Router();
 
 router.use(verifyToken);
 
-router.get('/:module_id', asyncHandler(listAssignments));
+// GET /api/assignments?course_id=&module_id=  (everyone; shaped per viewer)
+router.get('/', asyncHandler(listAssignments));
 router.get('/:id', asyncHandler(getAssignment));
 router.post(
   '/',
   restrictTo('admin', 'teacher'),
-  validate(assignmentSchema),
+  validate(createAssignmentSchema),
   asyncHandler(createAssignment),
 );
 router.patch(
   '/:id',
   restrictTo('admin', 'teacher'),
-  validate(assignmentSchema.partial()),
+  validate(updateAssignmentSchema),
   asyncHandler(updateAssignment),
 );
 router.delete('/:id', restrictTo('admin'), asyncHandler(deleteAssignment));

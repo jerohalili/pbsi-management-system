@@ -28,7 +28,7 @@ export default function QuizzesPage() {
 
   async function fetchQuizzes() {
     try {
-      const res = await api.get<{ quizzes: Quiz[] }>('/api/quizzes');
+      const res = await api.get<{ quizzes: Quiz[] }>('/quizzes');
       setQuizzes(res.data.quizzes);
     } catch (err: any) {
       toast({ title: 'Failed to load quizzes', description: err.message, variant: 'destructive' });

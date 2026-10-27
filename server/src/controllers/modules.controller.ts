@@ -1,6 +1,15 @@
 import { Request, Response } from 'express';
 import { sql } from '../config/db.js';
 import type { AppError } from '../middleware/errorHandler.js';
+import { moduleSchema } from '../utils/validation.js';
+import {
+  assertCanManageCourse,
+  assertCanManageModule,
+  assertHttpUrl,
+  httpError,
+  parseUuid,
+  rethrowDbError,
+} from '../utils/access.js';
 
 export async function listModules(req: Request, res: Response): Promise<void> {
   const { course_id } = req.params as { course_id: string };
@@ -33,64 +42,67 @@ export async function getModule(req: Request, res: Response): Promise<void> {
 }
 
 export async function createModule(req: Request, res: Response): Promise<void> {
-  const { course_id, title, rich_description, video_url, attachment_url, order_index } =
-    req.body as {
-      course_id: string;
-      title: string;
-      rich_description?: string;
-      video_url?: string;
-      attachment_url?: string;
-      order_index?: number;
-    };
+  if (!req.user) throw httpError(401, 'Not authenticated');
+  // The validation middleware does not replace req.body, so parse again to apply defaults.
+  const input = moduleSchema.parse(req.body);
+  assertHttpUrl(input.video_url, 'Video link');
+  assertHttpUrl(input.attachment_url, 'Attachment link');
+
+  await assertCanManageCourse(req.user, input.course_id);
 
   const [module] = await sql`
     INSERT INTO modules (course_id, title, rich_description, video_url, attachment_url, order_index)
-    VALUES (${course_id}, ${title}, ${rich_description}, ${video_url}, ${attachment_url}, ${order_index})
+    VALUES (${input.course_id}, ${input.title}, ${input.rich_description || null},
+            ${input.video_url || null}, ${input.attachment_url || null}, ${input.order_index})
     RETURNING id, course_id, title, rich_description, video_url, attachment_url, order_index, created_at
   `;
   res.status(201).json({ module });
 }
 
 export async function updateModule(req: Request, res: Response): Promise<void> {
-  const { id } = req.params as { id: string };
-  const { title, rich_description, video_url, attachment_url, order_index } =
-    req.body as {
-      title?: string;
-      rich_description?: string;
-      video_url?: string;
-      attachment_url?: string;
-      order_index?: number;
-    };
+  if (!req.user) throw httpError(401, 'Not authenticated');
+  const id = parseUuid(req.params.id, 'module id');
+  const input = moduleSchema.omit({ course_id: true }).partial().parse(req.body);
+  assertHttpUrl(input.video_url, 'Video link');
+  assertHttpUrl(input.attachment_url, 'Attachment link');
+
+  await assertCanManageModule(req.user, id);
+
+  // Optional text fields: undefined = leave unchanged, '' = clear.
+  const descProvided = input.rich_description !== undefined;
+  const videoProvided = input.video_url !== undefined;
+  const attachmentProvided = input.attachment_url !== undefined;
 
   const [module] = await sql`
     UPDATE modules
-    SET title = COALESCE(${title}, title),
-        rich_description = COALESCE(${rich_description}, rich_description),
-        video_url = COALESCE(${video_url}, video_url),
-        attachment_url = COALESCE(${attachment_url}, attachment_url),
-        order_index = COALESCE(${order_index}, order_index)
+    SET title = COALESCE(${input.title ?? null}, title),
+        rich_description = CASE WHEN ${descProvided}::boolean THEN ${input.rich_description || null} ELSE rich_description END,
+        video_url = CASE WHEN ${videoProvided}::boolean THEN ${input.video_url || null} ELSE video_url END,
+        attachment_url = CASE WHEN ${attachmentProvided}::boolean THEN ${input.attachment_url || null} ELSE attachment_url END,
+        order_index = COALESCE(${input.order_index ?? null}, order_index)
     WHERE id = ${id}
     RETURNING id, course_id, title, rich_description, video_url, attachment_url, order_index
   `;
-  if (!module) {
-    const err = new Error('Module not found') as AppError;
-    err.statusCode = 404;
-    throw err;
-  }
   res.json({ module });
 }
 
 export async function deleteModule(req: Request, res: Response): Promise<void> {
-  const { id } = req.params as { id: string };
+  const id = parseUuid(req.params.id, 'module id');
 
-  const [module] = await sql`
-    DELETE FROM modules WHERE id = ${id}
-    RETURNING id
-  `;
-  if (!module) {
-    const err = new Error('Module not found') as AppError;
-    err.statusCode = 404;
-    throw err;
+  try {
+    const [module] = await sql`
+      DELETE FROM modules WHERE id = ${id}
+      RETURNING id
+    `;
+    if (!module) {
+      const err = new Error('Module not found') as AppError;
+      err.statusCode = 404;
+      throw err;
+    }
+  } catch (err) {
+    rethrowDbError(err, {
+      foreignKey: 'This module still has assignments and can’t be deleted. Remove them first.',
+    });
   }
   res.json({ message: 'Module deleted' });
 }

@@ -1,152 +1,301 @@
+import { useState } from 'react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useQueryClient } from 'react-query';
+import { ArrowLeft, ClipboardList, ExternalLink, FileText, Pencil, Plus, Trash2, Video } from 'lucide-react';
 import useAuth from '@/hooks/useAuth.ts';
-import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import { Button } from '@/components/ui/button.tsx';
-import { Play, File, ChevronLeft } from 'lucide-react';
+import { useGet } from '@/hooks/useApi.ts';
 import api from '@/lib/api.ts';
 import { useToast } from '@/components/ui/toast.tsx';
+import { Button } from '@/components/ui/button.tsx';
+import { Badge } from '@/components/ui/badge.tsx';
+import { Card } from '@/components/ui/card.tsx';
+import { Skeleton } from '@/components/ui/skeleton.tsx';
+import { CourseFormDialog, CourseFormValues } from '@/components/courses/CourseFormDialog.tsx';
+import { ModuleFormDialog, ModuleFormValues } from '@/components/courses/ModuleFormDialog.tsx';
+import { ConfirmDialog } from '@/components/users/ConfirmDialog.tsx';
+import { AssignmentFormDialog } from '@/components/assignments/AssignmentFormDialog.tsx';
+import { AssignmentStatusBadge } from '@/components/assignments/AssignmentStatusBadge.tsx';
+import type { AssignmentItem } from '@/components/assignments/types.ts';
+import { formatDateTime } from '@/lib/utils.ts';
 
-interface Module {
-  id: string;
-  title: string;
-  rich_description: string | null;
-  video_url: string | null;
-  attachment_url: string | null;
-  order_index: number;
+interface Course extends CourseFormValues {
+  teacher_first_name: string | null;
+  teacher_last_name: string | null;
+  is_mine: boolean;
 }
 
-interface Course {
-  id: string;
-  code: string;
-  name: string;
-  description: string | null;
-  credits: number;
+interface Module extends ModuleFormValues {
+  course_id: string;
 }
+
+// Module links come from users, so only ever render real web links.
+const isWebUrl = (value: string | null | undefined): value is string =>
+  !!value && /^https?:\/\//i.test(value);
+
+type ModuleDialog = { mode: 'create' } | { mode: 'edit'; module: Module } | null;
 
 export default function CourseDetailPage() {
-  const { user, isAuthenticated, isLoading } = useAuth();
-  const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const { toast } = useToast();
-  const [course, setCourse] = useState<Course | null>(null);
-  const [modules, setModules] = useState<Module[]>([]);
-  useEffect(() => {
-    if (!isAuthenticated || !id) return;
-    fetchCourse();
-  }, [isAuthenticated, id]);
+  const queryClient = useQueryClient();
 
-  async function fetchCourse() {
-    try {
-      const res = await api.get<{ course: Course; modules: Module[] }>(`/api/courses/${id}`);
-      setCourse(res.data.course);
-      setModules(res.data.modules);
-    } catch (err: any) {
-      toast({ title: 'Failed to load course', description: err.message, variant: 'destructive' });
+  const [editingCourse, setEditingCourse] = useState(false);
+  const [assignmentModuleId, setAssignmentModuleId] = useState<string | null>(null);
+  const [moduleDialog, setModuleDialog] = useState<ModuleDialog>(null);
+  const [deleteTarget, setDeleteTarget] = useState<
+    { kind: 'course' } | { kind: 'module'; module: Module } | null
+  >(null);
+
+  const { data, isLoading, isError, refetch } = useGet<{ course: Course; modules: Module[] }>(
+    ['course', id ?? ''],
+    `/courses/${id}`,
+    { enabled: !!id },
+  );
+
+  const { data: assignmentData } = useGet<{ assignments: AssignmentItem[] }>(
+    ['assignments', 'course', id ?? ''],
+    `/assignments?course_id=${id}`,
+    { enabled: !!id },
+  );
+  const assignmentsByModule = (assignmentData?.assignments ?? []).reduce<Record<string, AssignmentItem[]>>(
+    (acc, a) => {
+      (acc[a.module_id] ||= []).push(a);
+      return acc;
+    },
+    {},
+  );
+
+  const isAdmin = user?.role === 'admin';
+  const course = data?.course;
+  const modules = data?.modules ?? [];
+  const canEdit = !!course && (isAdmin || (user?.role === 'teacher' && course.is_mine));
+
+  const refresh = () => {
+    queryClient.invalidateQueries('course');
+    queryClient.invalidateQueries('courses');
+    queryClient.invalidateQueries('assignments');
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    if (deleteTarget.kind === 'course') {
+      await api.delete(`/courses/${id}`);
+      toast({ title: 'Course deleted', variant: 'success' });
+      queryClient.invalidateQueries('courses');
+      navigate('/courses');
+    } else {
+      await api.delete(`/modules/${deleteTarget.module.id}`);
+      toast({ title: 'Module deleted', variant: 'success' });
+      refresh();
     }
-  }
+  };
 
-  if (isLoading || !course) {
+  const back = (
+    <Link to="/courses" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground">
+      <ArrowLeft className="w-4 h-4 mr-1" /> Courses
+    </Link>
+  );
+
+  if (isLoading) {
     return (
-      <div className="min-h-screen w-full bg-site-bg flex items-center justify-center px-4">
-        <div className="flex flex-col items-center gap-2 animate-pulse">
-          <div className="w-10 h-10 rounded-full bg-site-border"></div>
-          <p className="text-site-muted text-sm">Loading…</p>
-        </div>
+      <div className="space-y-6">
+        {back}
+        <Skeleton className="h-10 w-64" />
+        <Skeleton className="h-24 w-full" />
+        <Skeleton className="h-32 w-full" />
       </div>
     );
   }
 
-  if (!isAuthenticated) return null;
+  if (isError || !course) {
+    return (
+      <div className="space-y-6">
+        {back}
+        <Card className="p-6 flex items-center justify-between gap-4">
+          <p className="text-sm text-muted-foreground">Couldn’t load this course. It may no longer exist.</p>
+          <Button variant="outline" size="sm" onClick={() => refetch()}>
+            Retry
+          </Button>
+        </Card>
+      </div>
+    );
+  }
 
-  const canEdit = user?.role === 'admin' || user?.role === 'teacher';
+  const teacherName = `${course.teacher_first_name ?? ''} ${course.teacher_last_name ?? ''}`.trim() || '—';
 
   return (
-    <div className="min-h-screen w-full bg-site-bg px-4 py-12">
-      <div className="max-w-5xl mx-auto">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
-          <div>
-            <Button
-              onClick={() => navigate('/courses')}
-              className="text-sm bg-transparent hover:bg-primary/10 text-primary px-3 py-1.5 mr-2"
-            >
-              <ChevronLeft className="w-4 h-4 mr-1" /> Back to courses
-            </Button>
-            <h1 className="text-2xl font-bold text-site-text">{course.code} — {course.name}</h1>
-            <p className="text-site-muted">{course.description || 'No description available.'}</p>
-          </div>
-          {canEdit && (
-            <Button onClick={() => navigate(`/courses/${id}/edit`)} className="bg-primary text-white hover:bg-blue-700 px-6 py-2">
-              Edit Course
-            </Button>
-          )}
-        </div>
-
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          <div className="col-span-1 md:col-span-1 lg:col-span-1">
-            <div className="rounded-xl border border-site-border bg-site-card p-6 shadow-sm">
-              <h3 className="font-bold text-site-text mb-4">Course Info</h3>
-              <div className="space-y-3">
-                <div className="flex justify-between text-sm">
-                  <span className="text-site-muted">Credits</span>
-                  <span className="text-site-text font-medium">{course.credits}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-site-muted">Course Code</span>
-                  <span className="text-site-text font-mono">{course.code}</span>
-                </div>
-              </div>
+    <div className="space-y-8">
+      <div className="space-y-4">
+        {back}
+        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <Badge variant="outline">{course.code}</Badge>
+              {course.is_mine && <Badge variant="success">Your course</Badge>}
             </div>
+            <h1 className="text-2xl font-bold">{course.name}</h1>
+            <p className="text-sm text-muted-foreground">
+              Teacher: {teacherName} · {course.credits} {course.credits === 1 ? 'credit' : 'credits'}
+            </p>
+            {course.description && <p className="text-sm max-w-2xl whitespace-pre-wrap">{course.description}</p>}
           </div>
-        </div>
-
-        <div className="mt-8">
-          <h2 className="font-bold text-site-text mb-4">Modules</h2>
-          {modules.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 text-center">
-              <File className="w-16 h-16 text-site-muted/30 mb-4" />
-              <h3 className="font-bold text-site-text mb-2">No modules yet</h3>
-              <p className="text-site-muted">Add modules to organize course content.</p>
+          {(canEdit || isAdmin) && (
+            <div className="flex gap-2 shrink-0">
               {canEdit && (
-                <Button
-                  onClick={() => navigate(`/courses/${id}/modules/new`)}
-                  className="mt-4 bg-primary text-white hover:bg-blue-700 px-6 py-2"
-                >
-                  Add Module
+                <Button variant="outline" onClick={() => setEditingCourse(true)}>
+                  <Pencil className="w-4 h-4 mr-2" /> Edit course
                 </Button>
               )}
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {modules.map((m) => (
-                <div key={m.id} className="flex items-center gap-4 p-4 rounded-xl border border-site-border bg-site-card">
-                  <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary font-bold">
-                    {m.order_index + 1}
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="font-medium text-site-text">{m.title}</h3>
-                    {m.rich_description && (
-                      <p className="text-sm text-site-muted line-clamp-1 mt-1">{m.rich_description}</p>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {m.video_url && (
-                      <a href={m.video_url} target="_blank" rel="noopener noreferrer" className="p-2 text-primary hover:bg-primary/10 rounded-lg" title="Video">
-                        <Play className="w-4 h-4" />
-                      </a>
-                    )}
-                    {m.attachment_url && (
-                      <a href={m.attachment_url} target="_blank" rel="noopener noreferrer" className="p-2 text-primary hover:bg-primary/10 rounded-lg" title="Attachment">
-                        <File className="w-4 h-4" />
-                      </a>
-                    )}
-                  </div>
-                </div>
-              ))}
+              {isAdmin && (
+                <Button variant="outline" className="text-destructive hover:text-destructive" onClick={() => setDeleteTarget({ kind: 'course' })}>
+                  <Trash2 className="w-4 h-4 mr-2" /> Delete
+                </Button>
+              )}
             </div>
           )}
         </div>
       </div>
+
+      <section className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-bold">Modules</h2>
+          {canEdit && (
+            <Button onClick={() => setModuleDialog({ mode: 'create' })}>
+              <Plus className="w-4 h-4 mr-2" /> Add module
+            </Button>
+          )}
+        </div>
+
+        {modules.length === 0 ? (
+          <Card className="p-8 text-center text-muted-foreground">
+            <p>No modules yet.</p>
+            {canEdit && <p className="text-sm mt-1">Add the first module to start building this course.</p>}
+          </Card>
+        ) : (
+          <div className="space-y-3">
+            {modules.map((m, index) => (
+              <Card key={m.id} className="p-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="space-y-2 min-w-0">
+                    <h3 className="font-bold">
+                      <span className="text-muted-foreground mr-2">{index + 1}.</span>
+                      {m.title}
+                    </h3>
+                    {m.rich_description && (
+                      <p className="text-sm text-muted-foreground whitespace-pre-wrap break-words">{m.rich_description}</p>
+                    )}
+                    {(isWebUrl(m.video_url) || isWebUrl(m.attachment_url)) && (
+                      <div className="flex flex-wrap gap-4 pt-1">
+                        {isWebUrl(m.video_url) && (
+                          <a href={m.video_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center text-sm text-primary hover:underline">
+                            <Video className="w-4 h-4 mr-1" /> Watch video <ExternalLink className="w-3 h-3 ml-1" />
+                          </a>
+                        )}
+                        {isWebUrl(m.attachment_url) && (
+                          <a href={m.attachment_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center text-sm text-primary hover:underline">
+                            <FileText className="w-4 h-4 mr-1" /> Open material <ExternalLink className="w-3 h-3 ml-1" />
+                          </a>
+                        )}
+                      </div>
+                    )}
+                    {((assignmentsByModule[m.id] ?? []).length > 0 || canEdit) && (
+                      <div className="pt-2 space-y-2">
+                        {(assignmentsByModule[m.id] ?? []).length > 0 && (
+                          <ul className="space-y-1">
+                            {(assignmentsByModule[m.id] ?? []).map((a) => (
+                              <li key={a.id} className="flex items-center gap-2 flex-wrap text-sm">
+                                <ClipboardList className="w-4 h-4 text-muted-foreground shrink-0" />
+                                <Link to={`/assignments/${a.id}`} className="font-medium hover:underline">
+                                  {a.title}
+                                </Link>
+                                <span className="text-muted-foreground">due {formatDateTime(a.due_date)}</span>
+                                <AssignmentStatusBadge status={a.status} isLate={a.is_late} />
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                        {canEdit && (
+                          <Button variant="outline" size="sm" onClick={() => setAssignmentModuleId(m.id)}>
+                            <Plus className="w-4 h-4 mr-1" /> Add assignment
+                          </Button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  {(canEdit || isAdmin) && (
+                    <div className="flex shrink-0">
+                      {canEdit && (
+                        <Button variant="ghost" size="icon" aria-label={`Edit module ${m.title}`} title="Edit" onClick={() => setModuleDialog({ mode: 'edit', module: m })}>
+                          <Pencil className="w-4 h-4" />
+                        </Button>
+                      )}
+                      {isAdmin && (
+                        <Button variant="ghost" size="icon" aria-label={`Delete module ${m.title}`} title="Delete" className="text-destructive hover:text-destructive" onClick={() => setDeleteTarget({ kind: 'module', module: m })}>
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <CourseFormDialog
+        open={editingCourse}
+        onOpenChange={setEditingCourse}
+        mode="edit"
+        isAdmin={isAdmin}
+        course={course}
+        onSaved={() => {
+          refresh();
+          toast({ title: 'Course updated', variant: 'success' });
+        }}
+      />
+
+      <AssignmentFormDialog
+        open={assignmentModuleId !== null}
+        onOpenChange={(open) => !open && setAssignmentModuleId(null)}
+        mode="create"
+        moduleId={assignmentModuleId ?? undefined}
+        onSaved={() => {
+          refresh();
+          toast({ title: 'Assignment created', variant: 'success' });
+        }}
+      />
+
+      <ModuleFormDialog
+        open={moduleDialog !== null}
+        onOpenChange={(open) => !open && setModuleDialog(null)}
+        mode={moduleDialog?.mode ?? 'create'}
+        courseId={course.id}
+        nextOrderIndex={modules.length > 0 ? Math.max(...modules.map((m) => m.order_index)) + 1 : 0}
+        module={moduleDialog?.mode === 'edit' ? moduleDialog.module : null}
+        onSaved={() => {
+          refresh();
+          toast({ title: moduleDialog?.mode === 'edit' ? 'Module updated' : 'Module added', variant: 'success' });
+        }}
+      />
+
+      {deleteTarget && (
+        <ConfirmDialog
+          open
+          onOpenChange={(open) => !open && setDeleteTarget(null)}
+          title={deleteTarget.kind === 'course' ? 'Delete this course?' : 'Delete this module?'}
+          description={
+            deleteTarget.kind === 'course'
+              ? `“${course.name}” will be removed permanently. A course that still has modules, quizzes or grades can’t be deleted.`
+              : `“${deleteTarget.module.title}” will be removed permanently. A module that still has assignments can’t be deleted.`
+          }
+          confirmLabel="Delete"
+          destructive
+          onConfirm={confirmDelete}
+        />
+      )}
     </div>
   );
 }
-

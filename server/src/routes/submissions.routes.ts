@@ -9,19 +9,20 @@ import { verifyToken } from '../middleware/verifyToken.js';
 import { restrictTo } from '../middleware/restrictTo.js';
 import { validate } from '../middleware/validate.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
-import { gradeSchema } from '../utils/validation.js';
+import { gradeSubmissionSchema, submitAssignmentSchema } from '../utils/validation.js';
 
 const router = Router();
 
 router.use(verifyToken);
 
-router.get('/:assignment_id', asyncHandler(listSubmissions));
+// GET /api/submissions?assignment_id=  (teachers/admins: everyone in the class for one assignment)
+router.get('/', restrictTo('admin', 'teacher'), asyncHandler(listSubmissions));
 router.get('/:id', asyncHandler(getSubmission));
-router.post('/', asyncHandler(createSubmission));
+router.post('/', restrictTo('student'), validate(submitAssignmentSchema), asyncHandler(createSubmission));
 router.patch(
   '/:id/grade',
   restrictTo('admin', 'teacher'),
-  validate(gradeSchema),
+  validate(gradeSubmissionSchema),
   asyncHandler(gradeSubmission),
 );
 

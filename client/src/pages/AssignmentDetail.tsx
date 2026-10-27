@@ -1,0 +1,357 @@
+import { useState } from 'react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useQueryClient } from 'react-query';
+import { ArrowLeft, ExternalLink, FileText, Pencil, Trash2 } from 'lucide-react';
+import useAuth from '@/hooks/useAuth.ts';
+import { useGet } from '@/hooks/useApi.ts';
+import api from '@/lib/api.ts';
+import { getErrorMessage } from '@/lib/errors.ts';
+import { formatDateTime } from '@/lib/utils.ts';
+import { useToast } from '@/components/ui/toast.tsx';
+import { Button } from '@/components/ui/button.tsx';
+import { Badge } from '@/components/ui/badge.tsx';
+import { Card } from '@/components/ui/card.tsx';
+import { Input } from '@/components/ui/input.tsx';
+import { Label } from '@/components/ui/label.tsx';
+import { Skeleton } from '@/components/ui/skeleton.tsx';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table.tsx';
+import { AssignmentStatusBadge } from '@/components/assignments/AssignmentStatusBadge.tsx';
+import { AssignmentFormDialog } from '@/components/assignments/AssignmentFormDialog.tsx';
+import { GradeDialog, GradeTarget } from '@/components/assignments/GradeDialog.tsx';
+import { isWebUrl, type AssignmentItem, type AssignmentStatus } from '@/components/assignments/types.ts';
+import { ConfirmDialog } from '@/components/users/ConfirmDialog.tsx';
+
+interface SubmissionRow {
+  student_id: string;
+  student_number: string;
+  first_name: string | null;
+  last_name: string | null;
+  submission_id: string | null;
+  file_url: string | null;
+  submitted_at: string | null;
+  grade: number | null;
+  feedback: string | null;
+  graded_at: string | null;
+  is_late: boolean;
+}
+
+function rowStatus(row: SubmissionRow): AssignmentStatus | 'missing' {
+  if (!row.submission_id) return 'missing';
+  return row.grade !== null ? 'graded' : 'submitted';
+}
+
+export default function AssignmentDetailPage() {
+  const { id } = useParams<{ id: string }>();
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const [editing, setEditing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [gradeTarget, setGradeTarget] = useState<GradeTarget | null>(null);
+
+  // Student hand-in form
+  const [link, setLink] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
+
+  const isStudent = user?.role === 'student';
+  const isAdmin = user?.role === 'admin';
+
+  const { data, isLoading, isError, refetch } = useGet<{ assignment: AssignmentItem }>(
+    ['assignment', id ?? ''],
+    `/assignments/${id}`,
+    { enabled: !!id },
+  );
+  const assignment = data?.assignment;
+  const canManage = !!assignment?.can_manage;
+
+  const { data: subData, isLoading: subsLoading } = useGet<{ submissions: SubmissionRow[] }>(
+    ['submissions', id ?? ''],
+    `/submissions?assignment_id=${id}`,
+    { enabled: !!id && canManage },
+  );
+  const rows = subData?.submissions ?? [];
+
+  const refreshAll = () => {
+    queryClient.invalidateQueries('assignment');
+    queryClient.invalidateQueries('assignments');
+    queryClient.invalidateQueries('submissions');
+    queryClient.invalidateQueries('dashboard-stats');
+  };
+
+  const back = (
+    <Link to="/assignments" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground">
+      <ArrowLeft className="w-4 h-4 mr-1" /> Assignments
+    </Link>
+  );
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        {back}
+        <Skeleton className="h-10 w-72" />
+        <Skeleton className="h-32 w-full" />
+      </div>
+    );
+  }
+
+  if (isError || !assignment) {
+    return (
+      <div className="space-y-6">
+        {back}
+        <Card className="p-6 flex items-center justify-between gap-4">
+          <p className="text-sm text-muted-foreground">Couldn’t load this assignment. It may no longer exist.</p>
+          <Button variant="outline" size="sm" onClick={() => refetch()}>
+            Retry
+          </Button>
+        </Card>
+      </div>
+    );
+  }
+
+  const handIn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setSubmitError('');
+    try {
+      await api.post('/submissions', { assignment_id: assignment.id, file_url: link.trim() });
+      toast({ title: assignment.submission_id ? 'Submission updated' : 'Submitted', variant: 'success' });
+      setLink('');
+      refreshAll();
+    } catch (err) {
+      setSubmitError(getErrorMessage(err));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const confirmDelete = async () => {
+    await api.delete(`/assignments/${assignment.id}`);
+    toast({ title: 'Assignment deleted', variant: 'success' });
+    queryClient.invalidateQueries('assignments');
+    navigate('/assignments');
+  };
+
+  const missingCount = rows.filter((r) => !r.submission_id).length;
+  const gradedCount = rows.filter((r) => r.grade !== null).length;
+  const handedInCount = rows.length - missingCount;
+  const isGraded = assignment.status === 'graded';
+  const pastDue = new Date(assignment.due_date).getTime() < Date.now();
+
+  return (
+    <div className="space-y-8">
+      <div className="space-y-4">
+        {back}
+        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <Badge variant="outline">{assignment.course_code}</Badge>
+              <span className="text-sm text-muted-foreground">{assignment.module_title}</span>
+            </div>
+            <h1 className="text-2xl font-bold">{assignment.title}</h1>
+            <p className="text-sm text-muted-foreground">
+              Due {formatDateTime(assignment.due_date)} · {assignment.max_score} points
+            </p>
+            {assignment.instructions && (
+              <p className="text-sm max-w-2xl whitespace-pre-wrap break-words">{assignment.instructions}</p>
+            )}
+            {isWebUrl(assignment.attachment_url) && (
+              <a href={assignment.attachment_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center text-sm text-primary hover:underline">
+                <FileText className="w-4 h-4 mr-1" /> Open material <ExternalLink className="w-3 h-3 ml-1" />
+              </a>
+            )}
+          </div>
+          {canManage && (
+            <div className="flex gap-2 shrink-0">
+              <Button variant="outline" onClick={() => setEditing(true)}>
+                <Pencil className="w-4 h-4 mr-2" /> Edit
+              </Button>
+              {isAdmin && (
+                <Button variant="outline" className="text-destructive hover:text-destructive" onClick={() => setDeleting(true)}>
+                  <Trash2 className="w-4 h-4 mr-2" /> Delete
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {isStudent && (
+        <section className="space-y-4">
+          <h2 className="text-xl font-bold">Your work</h2>
+          <Card className="p-5 space-y-4">
+            <div className="flex items-center gap-3 flex-wrap">
+              <AssignmentStatusBadge status={assignment.status} isLate={assignment.is_late} />
+              {assignment.submitted_at && (
+                <span className="text-sm text-muted-foreground">Handed in {formatDateTime(assignment.submitted_at)}</span>
+              )}
+            </div>
+
+            {isWebUrl(assignment.submission_url) && (
+              <a href={assignment.submission_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center text-sm text-primary hover:underline break-all">
+                {assignment.submission_url} <ExternalLink className="w-3 h-3 ml-1 shrink-0" />
+              </a>
+            )}
+
+            {isGraded && (
+              <div className="rounded-lg border border-input bg-muted/40 p-4 space-y-1">
+                <p className="font-semibold">
+                  Grade: {assignment.grade} / {assignment.max_score}
+                </p>
+                {assignment.feedback && <p className="text-sm whitespace-pre-wrap">{assignment.feedback}</p>}
+                <p className="text-xs text-muted-foreground">This work has been graded and can no longer be changed.</p>
+              </div>
+            )}
+
+            {!isGraded && (
+              <form onSubmit={handIn} className="space-y-3">
+                <div className="space-y-2">
+                  <Label htmlFor="hand-in-link">
+                    {assignment.submission_id ? 'Replace your link' : 'Link to your work'}
+                  </Label>
+                  <Input
+                    id="hand-in-link"
+                    type="url"
+                    required
+                    placeholder="https://docs.google.com/…"
+                    value={link}
+                    onChange={(e) => setLink(e.target.value)}
+                  />
+                  {pastDue && (
+                    <p className="text-xs text-amber-600">
+                      This assignment is past due. You can still hand it in, but it will be marked late.
+                    </p>
+                  )}
+                </div>
+                {submitError && <p className="text-sm text-destructive">{submitError}</p>}
+                <Button type="submit" disabled={submitting}>
+                  {submitting ? 'Submitting…' : assignment.submission_id ? 'Resubmit' : 'Submit'}
+                </Button>
+              </form>
+            )}
+          </Card>
+        </section>
+      )}
+
+      {!isStudent && (
+        <section className="space-y-4">
+          <h2 className="text-xl font-bold">Submissions</h2>
+          {!canManage ? (
+            <Card className="p-6 text-sm text-muted-foreground">
+              Only this course’s teacher (or an administrator) can see and grade submissions.
+            </Card>
+          ) : subsLoading ? (
+            <Skeleton className="h-40 w-full" />
+          ) : (
+            <>
+              <p className="text-sm text-muted-foreground">
+                {handedInCount} handed in · {gradedCount} graded · {missingCount} missing
+              </p>
+              <div className="rounded-xl border border-input bg-card overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Student</TableHead>
+                      <TableHead className="w-40">Status</TableHead>
+                      <TableHead className="w-48">Handed in</TableHead>
+                      <TableHead className="w-24">Grade</TableHead>
+                      <TableHead className="w-28 text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {rows.map((r) => {
+                      const status = rowStatus(r);
+                      const name = `${r.first_name ?? ''} ${r.last_name ?? ''}`.trim() || r.student_number;
+                      return (
+                        <TableRow key={r.student_id}>
+                          <TableCell>
+                            <div className="font-medium">{name}</div>
+                            <div className="text-xs text-muted-foreground">{r.student_number}</div>
+                          </TableCell>
+                          <TableCell>
+                            {status === 'missing' ? (
+                              <Badge variant="outline">Missing</Badge>
+                            ) : (
+                              <AssignmentStatusBadge status={status} isLate={r.is_late} />
+                            )}
+                          </TableCell>
+                          <TableCell className="text-sm">
+                            {r.submitted_at ? formatDateTime(r.submitted_at) : '—'}
+                            {isWebUrl(r.file_url) && (
+                              <a href={r.file_url} target="_blank" rel="noopener noreferrer" className="block text-primary hover:underline text-xs">
+                                Open work
+                              </a>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-sm">
+                            {r.grade !== null ? `${r.grade} / ${assignment.max_score}` : '—'}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {r.submission_id && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                aria-label={`${r.grade !== null ? 'Edit grade for' : 'Grade'} ${name}`}
+                                onClick={() =>
+                                  setGradeTarget({
+                                    submissionId: r.submission_id as string,
+                                    studentName: name,
+                                    fileUrl: r.file_url,
+                                    maxScore: assignment.max_score,
+                                    currentGrade: r.grade,
+                                    currentFeedback: r.feedback,
+                                  })
+                                }
+                              >
+                                {r.grade !== null ? 'Edit grade' : 'Grade'}
+                              </Button>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
+          )}
+        </section>
+      )}
+
+      <AssignmentFormDialog
+        open={editing}
+        onOpenChange={setEditing}
+        mode="edit"
+        assignment={assignment}
+        onSaved={() => {
+          refreshAll();
+          toast({ title: 'Assignment updated', variant: 'success' });
+        }}
+      />
+
+      <GradeDialog
+        open={gradeTarget !== null}
+        onOpenChange={(open) => !open && setGradeTarget(null)}
+        target={gradeTarget}
+        onSaved={() => {
+          refreshAll();
+          toast({ title: 'Grade saved', variant: 'success' });
+        }}
+      />
+
+      {deleting && (
+        <ConfirmDialog
+          open
+          onOpenChange={(open) => !open && setDeleting(false)}
+          title="Delete this assignment?"
+          description={`“${assignment.title}” will be removed permanently. An assignment that already has submissions can’t be deleted.`}
+          confirmLabel="Delete"
+          destructive
+          onConfirm={confirmDelete}
+        />
+      )}
+    </div>
+  );
+}
