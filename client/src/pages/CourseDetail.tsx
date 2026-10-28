@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useQueryClient } from 'react-query';
-import { ArrowLeft, ClipboardList, ExternalLink, FileText, Pencil, Plus, Trash2, Video } from 'lucide-react';
+import { ArrowLeft, ClipboardList, ExternalLink, FileText, HelpCircle, Pencil, Plus, Trash2, Video } from 'lucide-react';
 import useAuth from '@/hooks/useAuth.ts';
 import { useGet } from '@/hooks/useApi.ts';
 import api from '@/lib/api.ts';
@@ -16,6 +16,8 @@ import { ConfirmDialog } from '@/components/users/ConfirmDialog.tsx';
 import { AssignmentFormDialog } from '@/components/assignments/AssignmentFormDialog.tsx';
 import { AssignmentStatusBadge } from '@/components/assignments/AssignmentStatusBadge.tsx';
 import type { AssignmentItem } from '@/components/assignments/types.ts';
+import { QuizFormDialog } from '@/components/quizzes/QuizFormDialog.tsx';
+import { formatTimeLimit, type QuizItem } from '@/components/quizzes/types.ts';
 import { formatDateTime } from '@/lib/utils.ts';
 
 interface Course extends CourseFormValues {
@@ -43,6 +45,7 @@ export default function CourseDetailPage() {
 
   const [editingCourse, setEditingCourse] = useState(false);
   const [assignmentModuleId, setAssignmentModuleId] = useState<string | null>(null);
+  const [creatingQuiz, setCreatingQuiz] = useState(false);
   const [moduleDialog, setModuleDialog] = useState<ModuleDialog>(null);
   const [deleteTarget, setDeleteTarget] = useState<
     { kind: 'course' } | { kind: 'module'; module: Module } | null
@@ -67,6 +70,13 @@ export default function CourseDetailPage() {
     {},
   );
 
+  const { data: quizData } = useGet<{ quizzes: QuizItem[] }>(
+    ['quizzes', 'course', id ?? ''],
+    `/quizzes?course_id=${id}`,
+    { enabled: !!id },
+  );
+  const quizzes = quizData?.quizzes ?? [];
+
   const isAdmin = user?.role === 'admin';
   const course = data?.course;
   const modules = data?.modules ?? [];
@@ -76,6 +86,7 @@ export default function CourseDetailPage() {
     queryClient.invalidateQueries('course');
     queryClient.invalidateQueries('courses');
     queryClient.invalidateQueries('assignments');
+    queryClient.invalidateQueries('quizzes');
   };
 
   const confirmDelete = async () => {
@@ -245,6 +256,57 @@ export default function CourseDetailPage() {
         )}
       </section>
 
+      <section className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-bold">Quizzes</h2>
+          {canEdit && (
+            <Button onClick={() => setCreatingQuiz(true)}>
+              <Plus className="w-4 h-4 mr-2" /> New quiz
+            </Button>
+          )}
+        </div>
+
+        {quizzes.length === 0 ? (
+          <Card className="p-8 text-center text-muted-foreground">
+            <p>No quizzes yet.</p>
+            {canEdit && <p className="text-sm mt-1">Create a quiz, add questions, then publish it for students.</p>}
+          </Card>
+        ) : (
+          <div className="space-y-3">
+            {quizzes.map((q) => (
+              <Card key={q.id} className="p-4">
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <HelpCircle className="w-4 h-4 text-muted-foreground shrink-0" />
+                      <Link to={`/quizzes/${q.id}`} className="font-medium hover:underline">
+                        {q.title}
+                      </Link>
+                      {q.can_manage && (
+                        <Badge variant={q.is_published ? 'success' : 'warning'}>{q.is_published ? 'Published' : 'Draft'}</Badge>
+                      )}
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {q.question_count} {q.question_count === 1 ? 'question' : 'questions'} · {q.total_points} points ·{' '}
+                      {formatTimeLimit(q.time_limit_minutes)}
+                    </p>
+                  </div>
+                  {q.status === 'completed' && q.attempt_id ? (
+                    <Link to={`/quiz-results/${q.attempt_id}`} className="inline-flex items-center gap-2 text-sm text-primary hover:underline">
+                      <Badge variant="success">Completed</Badge> {q.my_score}%
+                    </Link>
+                  ) : q.status === 'not_taken' ? (
+                    <Button asChild size="sm">
+                      <Link to={`/quizzes/${q.id}`}>Take quiz</Link>
+                    </Button>
+                  ) : null}
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
+      </section>
+
       <CourseFormDialog
         open={editingCourse}
         onOpenChange={setEditingCourse}
@@ -254,6 +316,18 @@ export default function CourseDetailPage() {
         onSaved={() => {
           refresh();
           toast({ title: 'Course updated', variant: 'success' });
+        }}
+      />
+
+      <QuizFormDialog
+        open={creatingQuiz}
+        onOpenChange={setCreatingQuiz}
+        mode="create"
+        courseId={course.id}
+        onSaved={(quiz) => {
+          refresh();
+          toast({ title: 'Quiz created', variant: 'success' });
+          navigate(`/quizzes/${quiz.id}`);
         }}
       />
 

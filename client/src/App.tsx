@@ -25,6 +25,9 @@ import CourseDetail from '@/pages/CourseDetail.tsx';
 import Assignments from '@/pages/Assignments.tsx';
 import AssignmentDetail from '@/pages/AssignmentDetail.tsx';
 import Quizzes from '@/pages/Quizzes.tsx';
+import QuizDetail from '@/pages/QuizDetail.tsx';
+import QuizTake from '@/pages/QuizTake.tsx';
+import QuizResult from '@/pages/QuizResult.tsx';
 import Attendance from '@/pages/Attendance.tsx';
 import Timetable from '@/pages/Timetable.tsx';
 import Grades from '@/pages/Grades.tsx';
@@ -76,6 +79,9 @@ const App = () => {
           <Route path="assignments" element={<ProtectedRoute><Assignments /></ProtectedRoute>} />
           <Route path="assignments/:id" element={<ProtectedRoute><AssignmentDetail /></ProtectedRoute>} />
           <Route path="quizzes" element={<ProtectedRoute><Quizzes /></ProtectedRoute>} />
+          <Route path="quizzes/:id" element={<ProtectedRoute><QuizDetail /></ProtectedRoute>} />
+          <Route path="quizzes/:id/take" element={<ProtectedRoute><QuizTake /></ProtectedRoute>} />
+          <Route path="quiz-results/:attemptId" element={<ProtectedRoute><QuizResult /></ProtectedRoute>} />
           <Route path="attendance" element={<ProtectedRoute><Attendance /></ProtectedRoute>} />
           <Route path="timetable" element={<ProtectedRoute><Timetable /></ProtectedRoute>} />
           <Route path="grades" element={<ProtectedRoute><Grades /></ProtectedRoute>} />
