@@ -100,7 +100,7 @@ export function QuizFormDialog({ open, onOpenChange, mode, courseId, quiz, onSav
           {error && <p className="text-sm text-destructive">{error}</p>}
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
+            <Button type="button" variant="destructive" onClick={() => onOpenChange(false)} disabled={busy}>
               Cancel
             </Button>
             <Button type="submit" disabled={busy}>

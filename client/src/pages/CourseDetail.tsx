@@ -48,7 +48,11 @@ export default function CourseDetailPage() {
   const [creatingQuiz, setCreatingQuiz] = useState(false);
   const [moduleDialog, setModuleDialog] = useState<ModuleDialog>(null);
   const [deleteTarget, setDeleteTarget] = useState<
-    { kind: 'course' } | { kind: 'module'; module: Module } | null
+    | { kind: 'course' }
+    | { kind: 'module'; module: Module }
+    | { kind: 'assignment'; assignment: AssignmentItem }
+    | { kind: 'quiz'; quiz: QuizItem }
+    | null
   >(null);
 
   const { data, isLoading, isError, refetch } = useGet<{ course: Course; modules: Module[] }>(
@@ -89,6 +93,14 @@ export default function CourseDetailPage() {
     queryClient.invalidateQueries('quizzes');
   };
 
+  const deleteCourse = async () => {
+    setDeleteTarget({ kind: 'course' });
+  };
+
+  const deleteModule = async (module: Module) => {
+    setDeleteTarget({ kind: 'module', module });
+  };
+
   const confirmDelete = async () => {
     if (!deleteTarget) return;
     if (deleteTarget.kind === 'course') {
@@ -96,11 +108,22 @@ export default function CourseDetailPage() {
       toast({ title: 'Course deleted', variant: 'success' });
       queryClient.invalidateQueries('courses');
       navigate('/courses');
-    } else {
+    } else if (deleteTarget.kind === 'module') {
       await api.delete(`/modules/${deleteTarget.module.id}`);
       toast({ title: 'Module deleted', variant: 'success' });
       refresh();
+    } else if (deleteTarget.kind === 'assignment') {
+      await api.delete(`/assignments/${deleteTarget.assignment.id}`);
+      toast({ title: 'Assignment deleted', variant: 'success' });
+      queryClient.invalidateQueries('assignments');
+      refresh();
+    } else if (deleteTarget.kind === 'quiz') {
+      await api.delete(`/quizzes/${deleteTarget.quiz.id}`);
+      toast({ title: 'Quiz deleted', variant: 'success' });
+      queryClient.invalidateQueries('quizzes');
+      refresh();
     }
+    setDeleteTarget(null);
   };
 
   const back = (
@@ -155,12 +178,12 @@ export default function CourseDetailPage() {
           {(canEdit || isAdmin) && (
             <div className="flex gap-2 shrink-0">
               {canEdit && (
-                <Button variant="outline" onClick={() => setEditingCourse(true)}>
+                <Button onClick={() => setEditingCourse(true)}>
                   <Pencil className="w-4 h-4 mr-2" /> Edit course
                 </Button>
               )}
-              {isAdmin && (
-                <Button variant="outline" className="text-destructive hover:text-destructive" onClick={() => setDeleteTarget({ kind: 'course' })}>
+              {canEdit && (
+                <Button variant="destructive" onClick={deleteCourse}>
                   <Trash2 className="w-4 h-4 mr-2" /> Delete
                 </Button>
               )}
@@ -223,6 +246,20 @@ export default function CourseDetailPage() {
                                 </Link>
                                 <span className="text-muted-foreground">due {formatDateTime(a.due_date)}</span>
                                 <AssignmentStatusBadge status={a.status} isLate={a.is_late} />
+                                {canEdit && (
+                                  <Button
+                                    variant="destructive"
+                                    size="icon"
+                                    aria-label={`Delete assignment ${a.title}`}
+                                    title="Delete"
+                                    onClick={(e: React.MouseEvent) => {
+                                      e.stopPropagation();
+                                      setDeleteTarget({ kind: 'assignment', assignment: a });
+                                    }}
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                )}
                               </li>
                             ))}
                           </ul>
@@ -236,14 +273,14 @@ export default function CourseDetailPage() {
                     )}
                   </div>
                   {(canEdit || isAdmin) && (
-                    <div className="flex shrink-0">
+                    <div className="flex shrink-0 gap-2">
                       {canEdit && (
                         <Button variant="ghost" size="icon" aria-label={`Edit module ${m.title}`} title="Edit" onClick={() => setModuleDialog({ mode: 'edit', module: m })}>
                           <Pencil className="w-4 h-4" />
                         </Button>
                       )}
-                      {isAdmin && (
-                        <Button variant="ghost" size="icon" aria-label={`Delete module ${m.title}`} title="Delete" className="text-destructive hover:text-destructive" onClick={() => setDeleteTarget({ kind: 'module', module: m })}>
+                      {canEdit && (
+                        <Button variant="destructive" size="icon" aria-label={`Delete module ${m.title}`} title="Delete" onClick={() => deleteModule(m)}>
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       )}
@@ -291,15 +328,31 @@ export default function CourseDetailPage() {
                       {formatTimeLimit(q.time_limit_minutes)}
                     </p>
                   </div>
-                  {q.status === 'completed' && q.attempt_id ? (
-                    <Link to={`/quiz-results/${q.attempt_id}`} className="inline-flex items-center gap-2 text-sm text-primary hover:underline">
-                      <Badge variant="success">Completed</Badge> {q.my_score}%
-                    </Link>
-                  ) : q.status === 'not_taken' ? (
-                    <Button asChild size="sm">
-                      <Link to={`/quizzes/${q.id}`}>Take quiz</Link>
-                    </Button>
-                  ) : null}
+                  <div className="flex shrink-0 gap-2">
+                    {q.status === 'completed' && q.attempt_id ? (
+                      <Link to={`/quiz-results/${q.attempt_id}`} className="inline-flex items-center gap-2 text-sm text-primary hover:underline">
+                        <Badge variant="success">Completed</Badge> {q.my_score}%
+                      </Link>
+                    ) : q.status === 'not_taken' ? (
+                      <Button asChild size="sm">
+                        <Link to={`/quizzes/${q.id}`}>Take quiz</Link>
+                      </Button>
+                    ) : null}
+                    {q.can_manage && (
+                      <Button
+                        variant="destructive"
+                        size="icon"
+                        aria-label={`Delete quiz ${q.title}`}
+                        title="Delete"
+                        onClick={(e: React.MouseEvent) => {
+                          e.stopPropagation();
+                          setDeleteTarget({ kind: 'quiz', quiz: q });
+                        }}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </Card>
             ))}
@@ -359,11 +412,23 @@ export default function CourseDetailPage() {
         <ConfirmDialog
           open
           onOpenChange={(open) => !open && setDeleteTarget(null)}
-          title={deleteTarget.kind === 'course' ? 'Delete this course?' : 'Delete this module?'}
+          title={
+            deleteTarget.kind === 'course'
+              ? 'Delete this course?'
+              : deleteTarget.kind === 'module'
+                ? 'Delete this module?'
+                : deleteTarget.kind === 'assignment'
+                  ? 'Delete this assignment?'
+                  : 'Delete this quiz?'
+          }
           description={
             deleteTarget.kind === 'course'
-              ? `“${course.name}” will be removed permanently. A course that still has modules, quizzes or grades can’t be deleted.`
-              : `“${deleteTarget.module.title}” will be removed permanently. A module that still has assignments can’t be deleted.`
+              ? `“${course.name}” and all its modules, assignments, quizzes, and related records will be removed permanently.`
+              : deleteTarget.kind === 'module'
+                ? `“${deleteTarget.module.title}” and all its assignments and submissions will be removed permanently.`
+                : deleteTarget.kind === 'assignment'
+                  ? `“${deleteTarget.assignment.title}” and all its submissions will be removed permanently.`
+                  : `“${deleteTarget.quiz.title}” and all its questions and attempts will be removed permanently.`
           }
           confirmLabel="Delete"
           destructive

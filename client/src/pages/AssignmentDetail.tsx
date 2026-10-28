@@ -48,8 +48,8 @@ export default function AssignmentDetailPage() {
   const queryClient = useQueryClient();
 
   const [editing, setEditing] = useState(false);
-  const [deleting, setDeleting] = useState(false);
   const [gradeTarget, setGradeTarget] = useState<GradeTarget | null>(null);
+  const [deletingAssignment, setDeletingAssignment] = useState(false);
 
   // Student hand-in form
   const [link, setLink] = useState('');
@@ -57,7 +57,6 @@ export default function AssignmentDetailPage() {
   const [submitError, setSubmitError] = useState('');
 
   const isStudent = user?.role === 'student';
-  const isAdmin = user?.role === 'admin';
 
   const { data, isLoading, isError, refetch } = useGet<{ assignment: AssignmentItem }>(
     ['assignment', id ?? ''],
@@ -127,11 +126,12 @@ export default function AssignmentDetailPage() {
     }
   };
 
-  const confirmDelete = async () => {
+  const confirmDeleteAssignment = async () => {
     await api.delete(`/assignments/${assignment.id}`);
     toast({ title: 'Assignment deleted', variant: 'success' });
     queryClient.invalidateQueries('assignments');
     navigate('/assignments');
+    setDeletingAssignment(false);
   };
 
   const missingCount = rows.filter((r) => !r.submission_id).length;
@@ -165,11 +165,11 @@ export default function AssignmentDetailPage() {
           </div>
           {canManage && (
             <div className="flex gap-2 shrink-0">
-              <Button variant="outline" onClick={() => setEditing(true)}>
+              <Button onClick={() => setEditing(true)}>
                 <Pencil className="w-4 h-4 mr-2" /> Edit
               </Button>
-              {isAdmin && (
-                <Button variant="outline" className="text-destructive hover:text-destructive" onClick={() => setDeleting(true)}>
+              {canManage && (
+                <Button variant="destructive" onClick={() => setDeletingAssignment(true)}>
                   <Trash2 className="w-4 h-4 mr-2" /> Delete
                 </Button>
               )}
@@ -341,15 +341,15 @@ export default function AssignmentDetailPage() {
         }}
       />
 
-      {deleting && (
+      {deletingAssignment && (
         <ConfirmDialog
           open
-          onOpenChange={(open) => !open && setDeleting(false)}
+          onOpenChange={(open) => !open && setDeletingAssignment(false)}
           title="Delete this assignment?"
-          description={`“${assignment.title}” will be removed permanently. An assignment that already has submissions can’t be deleted.`}
+          description={`“${assignment.title}” and all its submissions will be removed permanently.`}
           confirmLabel="Delete"
           destructive
-          onConfirm={confirmDelete}
+          onConfirm={confirmDeleteAssignment}
         />
       )}
     </div>

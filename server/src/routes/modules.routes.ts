@@ -30,6 +30,6 @@ router.patch(
   validate(moduleSchema.partial()),
   asyncHandler(updateModule),
 );
-router.delete('/:id', restrictTo('admin'), asyncHandler(deleteModule));
+router.delete('/:id', restrictTo('admin', 'teacher'), asyncHandler(deleteModule));
 
 export default router;

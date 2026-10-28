@@ -87,19 +87,13 @@ export async function updateModule(req: Request, res: Response): Promise<void> {
 
 export async function deleteModule(req: Request, res: Response): Promise<void> {
   const id = parseUuid(req.params.id, 'module id');
+  if (!req.user) throw httpError(401, 'Not authenticated');
+  await assertCanManageModule(req.user, id);
 
-  // The database cascades deletes from a module to its assignments and their submissions,
-  // so refuse unless the module has no assignments.
-  const [usage] = await sql`
-    SELECT (SELECT COUNT(*) FROM assignments WHERE module_id = ${id})::int AS assignments
-  `;
-  if (usage && usage.assignments > 0) {
-    throw httpError(
-      409,
-      `This module still has ${usage.assignments} assignment${usage.assignments === 1 ? '' : 's'} and can’t be deleted. Remove them first.`,
-    );
-  }
-
+  // Cascade delete submissions for assignments in this module, then the assignments,
+  // then the module itself.
+  await sql`DELETE FROM submissions WHERE assignment_id IN (SELECT id FROM assignments WHERE module_id = ${id})`;
+  await sql`DELETE FROM assignments WHERE module_id = ${id}`;
   const [module] = await sql`DELETE FROM modules WHERE id = ${id} RETURNING id`;
   if (!module) throw httpError(404, 'Module not found');
   res.json({ message: 'Module deleted' });

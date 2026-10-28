@@ -1,7 +1,12 @@
 import { Request, Response } from 'express';
 import { sql } from '../config/db.js';
 import type { AppError } from '../middleware/errorHandler.js';
-import { optionalInt, optionalUuid } from '../utils/access.js';
+import { httpError } from '../utils/access.js';
+import {
+  assertCanManageTimetableEntry,
+  optionalInt,
+  optionalUuid,
+} from '../utils/access.js';
 
 export async function listTimetable(_req: Request, res: Response): Promise<void> {
   const { day_of_week, teacher_id, course_id } = _req.query as {
@@ -52,8 +57,10 @@ export async function createTimetableEntry(req: Request, res: Response): Promise
   res.status(201).json({ entry });
 }
 
-export async function deleteTimetableEntry(_req: Request, res: Response): Promise<void> {
-  const { id } = _req.params as { id: string };
+export async function deleteTimetableEntry(req: Request, res: Response): Promise<void> {
+  const { id } = req.params as { id: string };
+  if (!req.user) throw httpError(401, 'Not authenticated');
+  await assertCanManageTimetableEntry(req.user, id);
 
   const [entry] = await sql`
     DELETE FROM timetable WHERE id = ${id}

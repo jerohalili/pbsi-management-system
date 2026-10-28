@@ -24,7 +24,7 @@ router.get('/', asyncHandler(listQuizzes));
 router.get('/:id', asyncHandler(getQuiz));
 router.post('/', restrictTo('admin', 'teacher'), validate(createQuizSchema), asyncHandler(createQuiz));
 router.patch('/:id', restrictTo('admin', 'teacher'), validate(updateQuizSchema), asyncHandler(updateQuiz));
-router.delete('/:id', restrictTo('admin'), asyncHandler(deleteQuiz));
+router.delete('/:id', restrictTo('admin', 'teacher'), asyncHandler(deleteQuiz));
 
 router.post(
   '/:id/questions',

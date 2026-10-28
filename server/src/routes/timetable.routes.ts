@@ -21,6 +21,6 @@ router.post(
   validate(timetableSchema),
   asyncHandler(createTimetableEntry),
 );
-router.delete('/:id', restrictTo('admin'), asyncHandler(deleteTimetableEntry));
+router.delete('/:id', restrictTo('admin', 'teacher'), asyncHandler(deleteTimetableEntry));
 
 export default router;

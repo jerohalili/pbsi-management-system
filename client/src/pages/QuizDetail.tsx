@@ -43,12 +43,12 @@ export default function QuizDetailPage() {
 
   const [editingQuiz, setEditingQuiz] = useState(false);
   const [questionDialog, setQuestionDialog] = useState<{ question: QuizQuestion | null } | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<{ kind: 'quiz' } | { kind: 'question'; question: QuizQuestion } | null>(null);
+  const [deleteQuestionTarget, setDeleteQuestionTarget] = useState<QuizQuestion | null>(null);
+  const [deletingQuiz, setDeletingQuiz] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [publishError, setPublishError] = useState('');
 
   const isStudent = user?.role === 'student';
-  const isAdmin = user?.role === 'admin';
 
   const { data, isLoading, isError, refetch } = useGet<{ quiz: QuizItem; questions: QuizQuestion[] }>(
     ['quiz', id ?? ''],
@@ -119,18 +119,20 @@ export default function QuizDetailPage() {
     }
   };
 
-  const confirmDelete = async () => {
-    if (!deleteTarget) return;
-    if (deleteTarget.kind === 'quiz') {
-      await api.delete(`/quizzes/${quiz.id}`);
-      toast({ title: 'Quiz deleted', variant: 'success' });
-      queryClient.invalidateQueries('quizzes');
-      navigate('/quizzes');
-    } else {
-      await api.delete(`/quizzes/${quiz.id}/questions/${deleteTarget.question.id}`);
-      toast({ title: 'Question deleted', variant: 'success' });
-      refreshAll();
-    }
+  const confirmDeleteQuiz = async () => {
+    await api.delete(`/quizzes/${quiz.id}`);
+    toast({ title: 'Quiz deleted', variant: 'success' });
+    queryClient.invalidateQueries('quizzes');
+    navigate('/quizzes');
+    setDeletingQuiz(false);
+  };
+
+  const deleteQuestion = async () => {
+    if (!deleteQuestionTarget) return;
+    await api.delete(`/quizzes/${quiz.id}/questions/${deleteQuestionTarget.id}`);
+    toast({ title: 'Question deleted', variant: 'success' });
+    refreshAll();
+    setDeleteQuestionTarget(null);
   };
 
   return (
@@ -154,11 +156,11 @@ export default function QuizDetailPage() {
               <Button onClick={togglePublish} disabled={publishing} variant={quiz.is_published ? 'outline' : 'default'}>
                 {quiz.is_published ? 'Unpublish' : 'Publish'}
               </Button>
-              <Button variant="outline" onClick={() => setEditingQuiz(true)}>
+              <Button onClick={() => setEditingQuiz(true)}>
                 <Pencil className="w-4 h-4 mr-2" /> Edit
               </Button>
-              {isAdmin && (
-                <Button variant="outline" className="text-destructive hover:text-destructive" onClick={() => setDeleteTarget({ kind: 'quiz' })}>
+              {canManage && (
+                <Button variant="destructive" onClick={() => setDeletingQuiz(true)}>
                   <Trash2 className="w-4 h-4 mr-2" /> Delete
                 </Button>
               )}
@@ -261,7 +263,7 @@ export default function QuizDetailPage() {
                         <Button variant="ghost" size="icon" aria-label={`Edit question ${index + 1}`} title="Edit" disabled={locked} onClick={() => setQuestionDialog({ question })}>
                           <Pencil className="w-4 h-4" />
                         </Button>
-                        <Button variant="ghost" size="icon" aria-label={`Delete question ${index + 1}`} title="Delete" disabled={locked} className="text-destructive hover:text-destructive" onClick={() => setDeleteTarget({ kind: 'question', question })}>
+                        <Button variant="ghost" size="icon" aria-label={`Delete question ${index + 1}`} title="Delete" disabled={locked} className="text-destructive hover:text-destructive" onClick={() => setDeleteQuestionTarget(question)}>
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       </div>
@@ -346,19 +348,27 @@ export default function QuizDetailPage() {
         }}
       />
 
-      {deleteTarget && (
+      {deleteQuestionTarget && (
         <ConfirmDialog
           open
-          onOpenChange={(open) => !open && setDeleteTarget(null)}
-          title={deleteTarget.kind === 'quiz' ? 'Delete this quiz?' : 'Delete this question?'}
-          description={
-            deleteTarget.kind === 'quiz'
-              ? `“${quiz.title}” and its questions will be removed permanently. A quiz that students have already taken can’t be deleted.`
-              : 'This question will be removed from the quiz.'
-          }
+          onOpenChange={(open) => !open && setDeleteQuestionTarget(null)}
+          title="Delete this question?"
+          description="This question will be removed from the quiz."
           confirmLabel="Delete"
           destructive
-          onConfirm={confirmDelete}
+          onConfirm={deleteQuestion}
+        />
+      )}
+
+      {deletingQuiz && (
+        <ConfirmDialog
+          open
+          onOpenChange={(open) => !open && setDeletingQuiz(false)}
+          title="Delete this quiz?"
+          description={`“${quiz.title}” and all its questions and attempts will be removed permanently.`}
+          confirmLabel="Delete"
+          destructive
+          onConfirm={confirmDeleteQuiz}
         />
       )}
     </div>

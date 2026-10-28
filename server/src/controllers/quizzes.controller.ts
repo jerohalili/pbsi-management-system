@@ -155,21 +155,13 @@ export async function updateQuiz(req: Request, res: Response): Promise<void> {
 
 export async function deleteQuiz(req: Request, res: Response): Promise<void> {
   const id = parseUuid(req.params.id, 'quiz id');
+  const user = currentUser(req);
+  await assertCanManageQuiz(user, id);
 
-  const [row] = await sql`
-    SELECT (SELECT COUNT(*) FROM quiz_attempts WHERE quiz_id = ${id})::int AS attempts
-    FROM quizzes WHERE id = ${id}
-  `;
-  if (!row) throw httpError(404, 'Quiz not found');
-  if (row.attempts > 0) {
-    throw httpError(
-      409,
-      `Students have already taken this quiz (${row.attempts} attempt${row.attempts === 1 ? '' : 's'}), so it can’t be deleted. Unpublish it instead.`,
-    );
-  }
-
-  // Its questions go with it (ON DELETE CASCADE).
-  await sql`DELETE FROM quizzes WHERE id = ${id}`;
+  // Cascade delete attempts before removing the quiz (questions go with ON DELETE CASCADE).
+  await sql`DELETE FROM quiz_attempts WHERE quiz_id = ${id}`;
+  const [quiz] = await sql`DELETE FROM quizzes WHERE id = ${id} RETURNING id`;
+  if (!quiz) throw httpError(404, 'Quiz not found');
   res.json({ message: 'Quiz deleted' });
 }
 

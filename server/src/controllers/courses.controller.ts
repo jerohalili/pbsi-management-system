@@ -129,33 +129,17 @@ export async function updateCourse(req: Request, res: Response): Promise<void> {
 
 export async function deleteCourse(req: Request, res: Response): Promise<void> {
   const id = parseUuid(req.params.id, 'course id');
+  const user = currentUser(req);
+  await assertCanManageCourse(user, id);
 
-  // The database cascades deletes from a course to everything under it (modules, assignments,
-  // submissions, quizzes, attempts, grades), so refuse unless the course is empty.
-  const [usage] = await sql`
-    SELECT
-      (SELECT COUNT(*) FROM modules WHERE course_id = ${id})::int AS modules,
-      (SELECT COUNT(*) FROM quizzes WHERE course_id = ${id})::int AS quizzes,
-      (SELECT COUNT(*) FROM grades WHERE course_id = ${id})::int AS grades,
-      (SELECT COUNT(*) FROM attendance WHERE course_id = ${id})::int AS attendance,
-      (SELECT COUNT(*) FROM timetable WHERE course_id = ${id})::int AS timetable
-  `;
-  const labels: [string, string, string][] = [
-    ['modules', 'module', 'modules'],
-    ['quizzes', 'quiz', 'quizzes'],
-    ['grades', 'grade', 'grades'],
-    ['attendance', 'attendance record', 'attendance records'],
-    ['timetable', 'timetable entry', 'timetable entries'],
-  ];
-  const attached = labels
-    .filter(([key]) => (usage?.[key] as number) > 0)
-    .map(([key, one, many]) => `${usage?.[key]} ${(usage?.[key] as number) === 1 ? one : many}`);
-  if (attached.length > 0) {
-    throw httpError(
-      409,
-      `This course still has ${attached.join(', ')}, so it can’t be deleted. Remove that content first.`,
-    );
-  }
+  // Cascade delete all related content before removing the course.
+  await sql`DELETE FROM timetable WHERE course_id = ${id}`;
+  await sql`DELETE FROM attendance WHERE course_id = ${id}`;
+  await sql`DELETE FROM grades WHERE course_id = ${id}`;
+  // Deleting modules cascades to their assignments and submissions.
+  await sql`DELETE FROM modules WHERE course_id = ${id}`;
+  // Deleting quizzes cascades to their questions and attempts.
+  await sql`DELETE FROM quizzes WHERE course_id = ${id}`;
 
   const [course] = await sql`DELETE FROM courses WHERE id = ${id} RETURNING id`;
   if (!course) throw httpError(404, 'Course not found');

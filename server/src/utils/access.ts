@@ -165,6 +165,27 @@ export async function assertCanManageQuiz(user: AuthUser, quizId: string): Promi
   };
 }
 
+/**
+ * Admins may manage any timetable entry; teachers only entries for courses they teach
+ * (matched via the entry's teacher record).
+ * Throws 404 for an unknown entry and 403 for someone else's.
+ */
+export async function assertCanManageTimetableEntry(
+  user: AuthUser,
+  entryId: string,
+): Promise<void> {
+  const [entry] = await sql`
+    SELECT t.id, te.user_id AS teacher_user_id
+    FROM timetable t
+    JOIN teachers te ON te.id = t.teacher_id
+    WHERE t.id = ${entryId}
+  `;
+  if (!entry) throw httpError(404, 'Timetable entry not found');
+  if (user.role !== 'admin' && !(user.role === 'teacher' && entry.teacher_user_id === user.id)) {
+    throw httpError(403, 'You can only manage timetable entries for your own courses');
+  }
+}
+
 /** Once a student has taken a quiz its questions are frozen, so graded results stay meaningful. */
 export async function assertQuizQuestionsEditable(quizId: string): Promise<void> {
   const [row] = await sql`SELECT COUNT(*)::int AS n FROM quiz_attempts WHERE quiz_id = ${quizId}`;

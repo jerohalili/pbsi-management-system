@@ -7,8 +7,12 @@ function cva(
   config?: { variants?: Record<string, Record<string, string>>; defaultVariants?: Record<string, string> },
 ) {
   return (props: Record<string, any> = {}) => {
-    // Merge defaultVariants so they apply when variant/size are not explicitly passed
-    const mergedProps = { ...config?.defaultVariants, ...props };
+    // Merge defaultVariants so they apply when variant/size are not explicitly passed.
+    // Skip undefined prop values so they don't clobber the defaults.
+    const mergedProps = { ...config?.defaultVariants };
+    for (const [key, val] of Object.entries(props)) {
+      if (val !== undefined) mergedProps[key] = val;
+    }
     let classes = base;
     if (config?.variants) {
       Object.entries(config.variants).forEach(([key, variants]) => {
@@ -24,15 +28,18 @@ function cva(
 }
 
 const buttonVariants = cva(
-  'inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50',
+  'inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium mx-1 transition-all duration-200 active:scale-95 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50',
   {
     variants: {
       variant: {
-        default: 'bg-primary text-primary-foreground hover:bg-primary/90',
-        destructive: 'bg-destructive text-destructive-foreground hover:bg-destructive/90',
-        outline: 'border border-input bg-background hover:bg-accent hover:text-accent-foreground',
-        secondary: 'bg-secondary text-secondary-foreground hover:bg-secondary/80',
-        ghost: 'hover:bg-accent hover:text-accent-foreground',
+        default: 'bg-primary/20 text-primary shadow-sm hover:bg-primary hover:text-primary-foreground',
+        destructive:
+          'bg-destructive/10 text-destructive border border-transparent shadow-sm hover:border-destructive hover:bg-destructive hover:text-destructive-foreground',
+        outline:
+          'bg-background text-primary hover:bg-primary hover:text-primary-foreground',
+        secondary:
+          'bg-secondary/10 text-secondary-foreground border border-transparent shadow-sm hover:border-secondary hover:bg-secondary hover:text-secondary-foreground',
+        ghost: 'bg-transparent hover:border hover:border-primary hover:bg-primary/10 hover:text-primary',
         link: 'text-primary underline-offset-4 hover:underline',
       },
       size: {

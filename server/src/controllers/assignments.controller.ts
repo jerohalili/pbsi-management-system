@@ -165,21 +165,14 @@ export async function updateAssignment(req: Request, res: Response): Promise<voi
 
 export async function deleteAssignment(req: Request, res: Response): Promise<void> {
   const id = parseUuid(req.params.id, 'assignment id');
+  const user = currentUser(req);
+  await assertCanManageAssignment(user, id);
 
-  const [row] = await sql`
-    SELECT (SELECT COUNT(*) FROM submissions WHERE assignment_id = ${id})::int AS submissions
-    FROM assignments WHERE id = ${id}
-  `;
-  if (!row) throw httpError(404, 'Assignment not found');
-  if (row.submissions > 0) {
-    throw httpError(
-      409,
-      `This assignment already has ${row.submissions} submission${row.submissions === 1 ? '' : 's'} and can’t be deleted.`,
-    );
-  }
-
+  // Cascade delete submissions before removing the assignment.
+  await sql`DELETE FROM submissions WHERE assignment_id = ${id}`;
   try {
-    await sql`DELETE FROM assignments WHERE id = ${id}`;
+    const [assignment] = await sql`DELETE FROM assignments WHERE id = ${id} RETURNING id`;
+    if (!assignment) throw httpError(404, 'Assignment not found');
   } catch (err) {
     rethrowDbError(err, {
       foreignKey: 'Other records still reference this assignment, so it can’t be deleted.',

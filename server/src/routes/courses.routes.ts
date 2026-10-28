@@ -30,6 +30,6 @@ router.patch(
   validate(courseSchema.partial()),
   asyncHandler(updateCourse),
 );
-router.delete('/:id', restrictTo('admin'), asyncHandler(deleteCourse));
+router.delete('/:id', restrictTo('admin', 'teacher'), asyncHandler(deleteCourse));
 
 export default router;

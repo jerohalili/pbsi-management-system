@@ -31,6 +31,6 @@ router.patch(
   validate(updateAssignmentSchema),
   asyncHandler(updateAssignment),
 );
-router.delete('/:id', restrictTo('admin'), asyncHandler(deleteAssignment));
+router.delete('/:id', restrictTo('admin', 'teacher'), asyncHandler(deleteAssignment));
 
 export default router;

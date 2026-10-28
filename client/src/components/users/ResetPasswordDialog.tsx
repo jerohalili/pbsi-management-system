@@ -77,7 +77,7 @@ export function ResetPasswordDialog({ open, onOpenChange, target }: ResetPasswor
             </div>
             {error && <p className="text-sm text-destructive">{error}</p>}
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              <Button type="button" variant="destructive" onClick={() => onOpenChange(false)}>
                 Cancel
               </Button>
               <Button type="submit" disabled={busy || password.length < 8}>

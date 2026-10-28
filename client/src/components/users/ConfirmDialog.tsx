@@ -62,7 +62,7 @@ export function ConfirmDialog({
         </DialogHeader>
         {error && <p className="text-sm text-destructive">{error}</p>}
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
+          <Button variant="destructive" onClick={() => onOpenChange(false)} disabled={busy}>
             Cancel
           </Button>
           <Button
