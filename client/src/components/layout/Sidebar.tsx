@@ -49,7 +49,7 @@ const navItems: Array<{
 }> = [
   { label: 'Dashboard', href: '/dashboard', icon: <LayoutDashboard size={18} />, roles: ['admin', 'teacher', 'student'] },
   { label: 'Users', href: '/users', icon: <UserCog size={18} />, roles: ['admin'] },
-  { label: 'Students', href: '/students', icon: <Users size={18} />, roles: ['teacher'] },
+  { label: 'Students', href: '/students', icon: <Users size={18} />, roles: ['admin', 'teacher'] },
   { label: 'Courses', href: '/courses', icon: <BookOpen size={18} />, roles: ['admin', 'teacher', 'student'] },
   { label: 'Assignments', href: '/assignments', icon: <FileText size={18} />, roles: ['admin', 'teacher', 'student'] },
   { label: 'Quizzes', href: '/quizzes', icon: <ClipboardList size={18} />, roles: ['admin', 'teacher', 'student'] },
