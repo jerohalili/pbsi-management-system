@@ -9,6 +9,7 @@ import {
   rethrowDbError,
 } from '../utils/access.js';
 import { gradeQuiz, isAnswerCorrect, type GradableQuestion } from '../utils/quizGrading.js';
+import { schoolYearTerm } from '../utils/gradeTerm.js';
 import type { AuthUser } from '../types/index.js';
 
 function currentUser(req: Request): AuthUser {
@@ -26,7 +27,7 @@ export async function submitQuizAttempt(req: Request, res: Response): Promise<vo
   const studentId = await getOwnStudentId(user.id);
   if (!studentId) throw httpError(404, 'Student profile not found');
 
-  const [quiz] = await sql`SELECT id, is_published FROM quizzes WHERE id = ${input.quiz_id}`;
+  const [quiz] = await sql`SELECT id, course_id, is_published FROM quizzes WHERE id = ${input.quiz_id}`;
   // An unpublished quiz does not exist as far as students are concerned.
   if (!quiz || quiz.is_published !== true) throw httpError(404, 'Quiz not found');
 
@@ -45,17 +46,31 @@ export async function submitQuizAttempt(req: Request, res: Response): Promise<vo
   const grade = gradeQuiz(questions, answers);
 
   // One attempt per student: insert only if this student has none yet. A single statement, so it
-  // does not rely on a unique constraint (the table has none).
+  // does not rely on a unique constraint (the table has none). The same statement records the
+  // result in grades, so an attempt and its grade always appear together.
   let attempt;
   try {
     [attempt] = await sql`
-      INSERT INTO quiz_attempts (quiz_id, student_id, score, answers)
-      SELECT ${input.quiz_id}::uuid, ${studentId}::uuid, ${grade.score}::numeric, ${JSON.stringify(answers)}::jsonb
-      WHERE NOT EXISTS (
-        SELECT 1 FROM quiz_attempts
-        WHERE quiz_id = ${input.quiz_id}::uuid AND student_id = ${studentId}::uuid
+      WITH ins AS (
+        INSERT INTO quiz_attempts (quiz_id, student_id, score, answers)
+        SELECT ${input.quiz_id}::uuid, ${studentId}::uuid, ${grade.score}::numeric, ${JSON.stringify(answers)}::jsonb
+        WHERE NOT EXISTS (
+          SELECT 1 FROM quiz_attempts
+          WHERE quiz_id = ${input.quiz_id}::uuid AND student_id = ${studentId}::uuid
+        )
+        RETURNING id, quiz_id, student_id, score, submitted_at
+      ),
+      g AS (
+        INSERT INTO grades (student_id, course_id, assessment_type, assessment_id, score, term)
+        SELECT ins.student_id, ${quiz.course_id}::uuid, 'quiz', ins.quiz_id, ins.score, ${schoolYearTerm()}::text
+        FROM ins
+        WHERE NOT EXISTS (
+          SELECT 1 FROM grades
+          WHERE student_id = ins.student_id AND assessment_type = 'quiz' AND assessment_id = ins.quiz_id
+        )
+        RETURNING id
       )
-      RETURNING id, quiz_id, student_id, score::float8 AS score, submitted_at
+      SELECT id, quiz_id, student_id, score::float8 AS score, submitted_at FROM ins
     `;
   } catch (err) {
     rethrowDbError(err, {});

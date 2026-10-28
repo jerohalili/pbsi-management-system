@@ -11,15 +11,24 @@ interface Grade {
   course_name: string;
   assessment_type: string;
   assessment_id: string;
-  score: number;
+  assessment_title: string | null;
+  // Postgres `numeric` reaches the browser as a string (e.g. "80.00"); it is a percentage 0-100.
+  score: number | string;
   feedback: string | null;
   term: string;
   created_at: string;
 }
 
+/** Average of all grade percentages (the API still calls it gpa). */
 interface GPA {
   cumulative_gpa: number | null;
   total_assessments: number;
+}
+
+/** Percentage for display, e.g. "80.00%"; N/A when there is nothing to show. */
+function formatAverage(value: number | string | null | undefined): string {
+  const text = formatGPA(value);
+  return text === 'N/A' ? text : `${text}%`;
 }
 
 export default function GradesPage() {
@@ -63,16 +72,16 @@ export default function GradesPage() {
     <div className="min-h-screen w-full bg-site-bg px-4 py-12">
       <div className="max-w-5xl mx-auto">
         <div className="mb-8">
-          <h1 className="text-2xl font-bold text-site-text">Grades &amp; GPA</h1>
-          <p className="text-site-muted">View your grades and cumulative GPA.</p>
+          <h1 className="text-2xl font-bold text-site-text">Grades</h1>
+          <p className="text-site-muted">View your grades and your average grade.</p>
         </div>
 
         <div className="grid gap-4 md:grid-cols-2 mb-8">
           <div className="rounded-xl border border-site-border bg-site-card p-6 shadow-sm">
-            <h3 className="font-bold text-site-text mb-4">Cumulative GPA</h3>
+            <h3 className="font-bold text-site-text mb-4">Average grade</h3>
             <div className="flex items-center justify-between">
               <div className="text-4xl font-bold text-site-text">
-                {formatGPA(gpa?.cumulative_gpa)}
+                {formatAverage(gpa?.cumulative_gpa)}
               </div>
               <div className="text-right">
                 <div className="text-xs text-site-muted">Total Assessments</div>
@@ -110,9 +119,11 @@ export default function GradesPage() {
                 grades.map((g) => (
                   <tr key={g.id} className="border-b border-site-border">
                     <td className="px-6 py-4 font-medium text-site-text">{g.course_name}</td>
-                    <td className="px-6 py-4 text-sm text-site-muted">#{g.assessment_id.slice(0, 6)}</td>
-                    <td className="px-6 py-4 text-sm text-site-muted">{g.assessment_type}</td>
-                    <td className="px-6 py-4 font-medium text-site-text">{g.score}</td>
+                    <td className="px-6 py-4 text-sm text-site-text">
+                      {g.assessment_title ?? `#${g.assessment_id.slice(0, 6)}`}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-site-muted capitalize">{g.assessment_type}</td>
+                    <td className="px-6 py-4 font-medium text-site-text">{formatAverage(g.score)}</td>
                     <td className="px-6 py-4 text-sm text-site-muted">{g.term}</td>
                   </tr>
                 ))

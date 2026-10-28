@@ -54,7 +54,7 @@ const STAT_CARDS: Record<DashboardRole, StatCardDef[]> = {
     { key: 'ungraded_submissions', title: 'Ungraded Submissions', icon: <ClipboardCheck className={iconClass} /> },
   ],
   student: [
-    { key: 'gpa', title: 'My GPA', icon: <GraduationCap className={iconClass} />, format: (v) => v.toFixed(2) },
+    { key: 'gpa', title: 'Average Grade', icon: <GraduationCap className={iconClass} />, format: percent },
     { key: 'attendance_overall', title: 'My Attendance', icon: <Calendar className={iconClass} />, format: percent },
     { key: 'graded_items', title: 'Graded Items', icon: <Award className={iconClass} /> },
     { key: 'unread_notifications', title: 'Unread Notifications', icon: <Bell className={iconClass} /> },

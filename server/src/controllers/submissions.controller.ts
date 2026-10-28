@@ -8,6 +8,7 @@ import {
   httpError,
   parseUuid,
 } from '../utils/access.js';
+import { schoolYearTerm, toPercent } from '../utils/gradeTerm.js';
 import type { AuthUser } from '../types/index.js';
 
 function currentUser(req: Request): AuthUser {
@@ -158,15 +159,45 @@ export async function gradeSubmission(req: Request, res: Response): Promise<void
   }
 
   const feedbackProvided = input.feedback !== undefined;
+  const percent = toPercent(input.score, assignment.max_score);
+
+  // One statement, so the submission and its grades row can never disagree. A re-grade updates the
+  // existing grades row (matched by student + assessment); the first grade inserts it.
   const [submission] = await sql`
-    UPDATE submissions
-    SET grade = ${input.score},
-        feedback = CASE WHEN ${feedbackProvided}::boolean THEN ${input.feedback || null} ELSE feedback END,
-        graded_by = ${user.id},
-        graded_at = now()
-    WHERE id = ${id}
-    RETURNING id, assignment_id, student_id, file_url, submitted_at,
-              grade::float8 AS grade, feedback, graded_at
+    WITH sub AS (
+      UPDATE submissions
+      SET grade = ${input.score},
+          feedback = CASE WHEN ${feedbackProvided}::boolean THEN ${input.feedback || null} ELSE feedback END,
+          graded_by = ${user.id},
+          graded_at = now()
+      WHERE id = ${id}
+      RETURNING id, assignment_id, student_id, file_url, submitted_at, grade, feedback, graded_at
+    ),
+    upd AS (
+      UPDATE grades g
+      SET score = ${percent}::numeric, feedback = sub.feedback
+      FROM sub
+      WHERE g.student_id = sub.student_id
+        AND g.assessment_type = 'assignment'
+        AND g.assessment_id = sub.assignment_id
+      RETURNING g.id
+    ),
+    ins AS (
+      INSERT INTO grades (student_id, course_id, assessment_type, assessment_id, score, feedback, term)
+      SELECT sub.student_id, ${assignment.course_id}::uuid, 'assignment', sub.assignment_id,
+             ${percent}::numeric, sub.feedback, ${schoolYearTerm()}::text
+      FROM sub
+      WHERE NOT EXISTS (
+        SELECT 1 FROM grades g
+        WHERE g.student_id = sub.student_id
+          AND g.assessment_type = 'assignment'
+          AND g.assessment_id = sub.assignment_id
+      )
+      RETURNING id
+    )
+    SELECT id, assignment_id, student_id, file_url, submitted_at,
+           grade::float8 AS grade, feedback, graded_at
+    FROM sub
   `;
 
   // Let the student know. Best effort: a notification problem must never undo or block a grade.

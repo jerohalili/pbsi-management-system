@@ -66,9 +66,9 @@ export async function getDashboardStats(req: Request, res: Response): Promise<vo
     `;
   } else {
     statsQuery = sql`
-      WITH st AS (SELECT id, cumulative_gpa FROM students WHERE user_id = ${user.id} LIMIT 1)
+      WITH st AS (SELECT id FROM students WHERE user_id = ${user.id} LIMIT 1)
       SELECT
-        (SELECT cumulative_gpa::float8 FROM st) AS gpa,
+        (SELECT ROUND(AVG(score)::numeric, 2)::float8 FROM grades WHERE student_id = (SELECT id FROM st)) AS gpa,
         (SELECT ROUND(
                   100.0 * COUNT(*) FILTER (WHERE status = 'present') /
                   NULLIF(COUNT(*) FILTER (WHERE status IN ('present','absent','late')), 0),

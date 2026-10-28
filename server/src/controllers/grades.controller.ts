@@ -32,9 +32,12 @@ export async function listGrades(_req: Request, res: Response): Promise<void> {
     SELECT g.id, g.student_id, g.course_id, g.assessment_type, g.assessment_id,
            g.score, g.feedback, g.term, g.created_at,
            c.code as course_code, c.name as course_name,
+           COALESCE(q.title, a.title) AS assessment_title,
            p.first_name, p.last_name
     FROM grades g
     JOIN courses c ON c.id = g.course_id
+    LEFT JOIN quizzes q ON g.assessment_type = 'quiz' AND q.id = g.assessment_id
+    LEFT JOIN assignments a ON g.assessment_type = 'assignment' AND a.id = g.assessment_id
     JOIN students s ON s.id = g.student_id
     JOIN profiles p ON p.user_id = s.user_id
     WHERE (${studentParam}::text = '' OR g.student_id = NULLIF(${studentParam}::text, '')::uuid)
