@@ -1,94 +1,256 @@
 import { Request, Response } from 'express';
 import { sql } from '../config/db.js';
-import type { AppError } from '../middleware/errorHandler.js';
+import {
+  createQuizSchema,
+  questionInputSchema,
+  updateQuizSchema,
+  type QuestionInput,
+} from '../utils/validation.js';
+import {
+  assertCanManageCourse,
+  assertCanManageQuiz,
+  assertQuizQuestionsEditable,
+  getOwnStudentId,
+  httpError,
+  optionalUuid,
+  parseUuid,
+} from '../utils/access.js';
+import { newTimeOrderedUuid } from '../utils/ids.js';
+import type { AuthUser } from '../types/index.js';
 
-export async function listQuizzes(req: Request, res: Response): Promise<void> {
-  const { course_id } = req.params as { course_id: string };
+function currentUser(req: Request): AuthUser {
+  if (!req.user) throw httpError(401, 'Not authenticated');
+  return req.user;
+}
 
-  const quizzes = await sql`
-    SELECT q.id, q.course_id, q.title, q.time_limit_minutes, q.is_published, q.created_at
+interface QuizFilters {
+  id?: string;
+  courseId?: string;
+}
+
+/**
+ * Quizzes as seen by the signed-in person. Drafts are visible only to the teacher who owns
+ * the course (and admins). Students also get their own attempt; managers get class-wide numbers.
+ */
+async function queryQuizzes(user: AuthUser, filters: QuizFilters) {
+  const isStudent = user.role === 'student';
+  const ownStudentId = isStudent ? await getOwnStudentId(user.id) : null;
+
+  const rows = await sql`
+    SELECT q.id, q.course_id, q.title, q.time_limit_minutes, q.is_published, q.created_at,
+           c.code AS course_code, c.name AS course_name,
+           (te.user_id = ${user.id}) AS is_mine,
+           (SELECT COUNT(*) FROM quiz_questions x WHERE x.quiz_id = q.id)::int AS question_count,
+           (SELECT COALESCE(SUM(x.points), 0) FROM quiz_questions x WHERE x.quiz_id = q.id)::int AS total_points,
+           (SELECT COUNT(*) FROM quiz_attempts a WHERE a.quiz_id = q.id)::int AS attempt_count,
+           (SELECT ROUND(AVG(a.score), 2)::float8 FROM quiz_attempts a WHERE a.quiz_id = q.id) AS average_score,
+           att.id AS attempt_id, att.score AS my_score, att.submitted_at AS my_submitted_at
     FROM quizzes q
-    WHERE q.course_id = ${course_id}
+    JOIN courses c ON c.id = q.course_id
+    JOIN teachers te ON te.id = c.teacher_id
+    LEFT JOIN LATERAL (
+      SELECT a.id, a.score::float8 AS score, a.submitted_at
+      FROM quiz_attempts a
+      WHERE a.quiz_id = q.id AND a.student_id = ${ownStudentId}::uuid
+      ORDER BY a.submitted_at DESC
+      LIMIT 1
+    ) att ON TRUE
+    WHERE (${filters.id ?? ''}::text = '' OR q.id = NULLIF(${filters.id ?? ''}::text, '')::uuid)
+      AND (${filters.courseId ?? ''}::text = '' OR q.course_id = NULLIF(${filters.courseId ?? ''}::text, '')::uuid)
+      AND (q.is_published = TRUE OR te.user_id = ${user.id} OR ${user.role === 'admin'}::boolean)
     ORDER BY q.created_at DESC
   `;
+
+  return rows.map((row) => {
+    const canManage = user.role === 'admin' || (user.role === 'teacher' && row.is_mine === true);
+    const base = { ...row, can_manage: canManage };
+    if (isStudent) {
+      return {
+        ...base,
+        status: row.attempt_id ? 'completed' : 'not_taken',
+        attempt_count: null,
+        average_score: null,
+      };
+    }
+    // Teachers who don't run the course see the quiz exists, not how the class did.
+    return canManage ? { ...base, status: null } : { ...base, status: null, attempt_count: null, average_score: null };
+  });
+}
+
+export async function listQuizzes(req: Request, res: Response): Promise<void> {
+  const user = currentUser(req);
+  const query = req.query as { course_id?: string };
+  const quizzes = await queryQuizzes(user, {
+    courseId: optionalUuid(query.course_id, 'course id') || undefined,
+  });
   res.json({ quizzes });
 }
 
+/** The quiz and its questions. `correct_answer` is only ever sent to people who manage the quiz. */
 export async function getQuiz(req: Request, res: Response): Promise<void> {
-  const { id } = req.params as { id: string };
+  const user = currentUser(req);
+  const id = parseUuid(req.params.id, 'quiz id');
 
-  const [quiz] = await sql`
-    SELECT q.id, q.course_id, q.title, q.time_limit_minutes, q.is_published, q.created_at
-    FROM quizzes q
-    WHERE q.id = ${id}
-  `;
-  if (!quiz) {
-    const err = new Error('Quiz not found') as AppError;
-    err.statusCode = 404;
-    throw err;
-  }
+  const [quiz] = await queryQuizzes(user, { id });
+  if (!quiz) throw httpError(404, 'Quiz not found');
 
   const questions = await sql`
-    SELECT id, quiz_id, question_text, type, options, correct_answer, points
+    SELECT id, quiz_id, question_text, type, options, points,
+           CASE WHEN ${quiz.can_manage}::boolean THEN correct_answer END AS correct_answer
     FROM quiz_questions
     WHERE quiz_id = ${id}
     ORDER BY id ASC
   `;
 
-  res.json({ quiz: { ...quiz, questions } });
+  res.json({
+    quiz,
+    questions: quiz.can_manage
+      ? questions
+      : questions.map(({ correct_answer: _hidden, ...safe }) => safe),
+  });
 }
 
 export async function createQuiz(req: Request, res: Response): Promise<void> {
-  const { course_id, title, time_limit_minutes, is_published } = req.body as {
-    course_id: string;
-    title: string;
-    time_limit_minutes?: number;
-    is_published?: boolean;
-  };
+  const user = currentUser(req);
+  const input = createQuizSchema.parse(req.body);
 
-  const [quiz] = await sql`
+  await assertCanManageCourse(user, input.course_id);
+
+  // New quizzes start as drafts; publishing needs at least one question.
+  const [created] = await sql`
     INSERT INTO quizzes (course_id, title, time_limit_minutes, is_published)
-    VALUES (${course_id}, ${title}, ${time_limit_minutes}, ${is_published})
-    RETURNING id, course_id, title, time_limit_minutes, is_published, created_at
+    VALUES (${input.course_id}, ${input.title}, ${input.time_limit_minutes ?? null}, FALSE)
+    RETURNING id
   `;
+  const [quiz] = await queryQuizzes(user, { id: created.id as string });
   res.status(201).json({ quiz });
 }
 
 export async function updateQuiz(req: Request, res: Response): Promise<void> {
-  const { id } = req.params as { id: string };
-  const { title, time_limit_minutes, is_published } = req.body as {
-    title?: string;
-    time_limit_minutes?: number;
-    is_published?: boolean;
-  };
+  const user = currentUser(req);
+  const id = parseUuid(req.params.id, 'quiz id');
+  const input = updateQuizSchema.parse(req.body);
 
-  const [quiz] = await sql`
-    UPDATE quizzes
-    SET title = COALESCE(${title}, title),
-        time_limit_minutes = COALESCE(${time_limit_minutes}, time_limit_minutes),
-        is_published = COALESCE(${is_published}, is_published)
-    WHERE id = ${id}
-    RETURNING id, course_id, title, time_limit_minutes, is_published
-  `;
-  if (!quiz) {
-    const err = new Error('Quiz not found') as AppError;
-    err.statusCode = 404;
-    throw err;
+  await assertCanManageQuiz(user, id);
+
+  if (input.is_published === true) {
+    const [row] = await sql`SELECT COUNT(*)::int AS n FROM quiz_questions WHERE quiz_id = ${id}`;
+    if (!row || row.n < 1) {
+      throw httpError(409, 'Add at least one question before publishing this quiz.');
+    }
   }
+
+  const timeProvided = input.time_limit_minutes !== undefined;
+  await sql`
+    UPDATE quizzes
+    SET title = COALESCE(${input.title ?? null}, title),
+        time_limit_minutes = CASE WHEN ${timeProvided}::boolean THEN ${input.time_limit_minutes ?? null}::int ELSE time_limit_minutes END,
+        is_published = COALESCE(${input.is_published ?? null}::boolean, is_published)
+    WHERE id = ${id}
+  `;
+
+  const [quiz] = await queryQuizzes(user, { id });
   res.json({ quiz });
 }
 
 export async function deleteQuiz(req: Request, res: Response): Promise<void> {
-  const { id } = req.params as { id: string };
+  const id = parseUuid(req.params.id, 'quiz id');
 
-  const [quiz] = await sql`
-    DELETE FROM quizzes WHERE id = ${id}
-    RETURNING id
+  const [row] = await sql`
+    SELECT (SELECT COUNT(*) FROM quiz_attempts WHERE quiz_id = ${id})::int AS attempts
+    FROM quizzes WHERE id = ${id}
   `;
-  if (!quiz) {
-    const err = new Error('Quiz not found') as AppError;
-    err.statusCode = 404;
-    throw err;
+  if (!row) throw httpError(404, 'Quiz not found');
+  if (row.attempts > 0) {
+    throw httpError(
+      409,
+      `Students have already taken this quiz (${row.attempts} attempt${row.attempts === 1 ? '' : 's'}), so it can’t be deleted. Unpublish it instead.`,
+    );
   }
+
+  // Its questions go with it (ON DELETE CASCADE).
+  await sql`DELETE FROM quizzes WHERE id = ${id}`;
   res.json({ message: 'Quiz deleted' });
+}
+
+// ---- Questions ---------------------------------------------------------------
+
+/** Store questions in one canonical form so grading never has to guess. */
+function normalizeQuestion(input: QuestionInput) {
+  if (input.type === 'mcq') {
+    const options = input.options ?? [];
+    const match = options.find((o) => o.toLowerCase() === input.correct_answer.toLowerCase());
+    return { options, correct_answer: match ?? input.correct_answer };
+  }
+  if (input.type === 'true_false') {
+    return { options: null, correct_answer: input.correct_answer.toLowerCase() };
+  }
+  return {
+    options: null,
+    correct_answer: input.correct_answer
+      .split('|')
+      .map((alt) => alt.trim())
+      .join('|'),
+  };
+}
+
+export async function createQuestion(req: Request, res: Response): Promise<void> {
+  const user = currentUser(req);
+  const quizId = parseUuid(req.params.id, 'quiz id');
+  const input = questionInputSchema.parse(req.body);
+
+  await assertCanManageQuiz(user, quizId);
+  await assertQuizQuestionsEditable(quizId);
+
+  const { options, correct_answer } = normalizeQuestion(input);
+  const [question] = await sql`
+    INSERT INTO quiz_questions (id, quiz_id, question_text, type, options, correct_answer, points)
+    VALUES (${newTimeOrderedUuid()}, ${quizId}, ${input.question_text}, ${input.type},
+            ${options}::text[], ${correct_answer}, ${input.points})
+    RETURNING id, quiz_id, question_text, type, options, correct_answer, points
+  `;
+  res.status(201).json({ question });
+}
+
+export async function updateQuestion(req: Request, res: Response): Promise<void> {
+  const user = currentUser(req);
+  const quizId = parseUuid(req.params.id, 'quiz id');
+  const questionId = parseUuid(req.params.question_id, 'question id');
+  const input = questionInputSchema.parse(req.body);
+
+  await assertCanManageQuiz(user, quizId);
+  await assertQuizQuestionsEditable(quizId);
+
+  const { options, correct_answer } = normalizeQuestion(input);
+  const [question] = await sql`
+    UPDATE quiz_questions
+    SET question_text = ${input.question_text}, type = ${input.type},
+        options = ${options}::text[], correct_answer = ${correct_answer}, points = ${input.points}
+    WHERE id = ${questionId} AND quiz_id = ${quizId}
+    RETURNING id, quiz_id, question_text, type, options, correct_answer, points
+  `;
+  if (!question) throw httpError(404, 'Question not found');
+  res.json({ question });
+}
+
+export async function deleteQuestion(req: Request, res: Response): Promise<void> {
+  const user = currentUser(req);
+  const quizId = parseUuid(req.params.id, 'quiz id');
+  const questionId = parseUuid(req.params.question_id, 'question id');
+
+  const quiz = await assertCanManageQuiz(user, quizId);
+  await assertQuizQuestionsEditable(quizId);
+
+  if (quiz.is_published) {
+    const [row] = await sql`SELECT COUNT(*)::int AS n FROM quiz_questions WHERE quiz_id = ${quizId}`;
+    if (row && row.n <= 1) {
+      throw httpError(409, 'A published quiz needs at least one question. Unpublish it first.');
+    }
+  }
+
+  const [deleted] = await sql`
+    DELETE FROM quiz_questions WHERE id = ${questionId} AND quiz_id = ${quizId} RETURNING id
+  `;
+  if (!deleted) throw httpError(404, 'Question not found');
+  res.json({ message: 'Question deleted' });
 }

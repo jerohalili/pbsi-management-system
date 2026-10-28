@@ -101,6 +101,65 @@ export const gradeSubmissionSchema = z.object({
   feedback: z.string().trim().max(2000).optional(),
 });
 
+// ---- Quizzes ---------------------------------------------------------------
+
+export const createQuizSchema = z.object({
+  course_id: z.string().uuid('Invalid course ID'),
+  title: z.string().trim().min(1, 'Quiz title is required').max(200),
+  // Minutes; null or omitted = no time limit.
+  time_limit_minutes: z
+    .union([z.null(), z.coerce.number().int().min(1, 'Time limit must be at least 1 minute').max(600)])
+    .optional(),
+});
+
+export const updateQuizSchema = z.object({
+  title: z.string().trim().min(1, 'Quiz title is required').max(200).optional(),
+  time_limit_minutes: z
+    .union([z.null(), z.coerce.number().int().min(1, 'Time limit must be at least 1 minute').max(600)])
+    .optional(),
+  // A real boolean on purpose: z.coerce.boolean() would turn the string "false" into true.
+  is_published: z.boolean().optional(),
+});
+
+export const questionInputSchema = z
+  .object({
+    type: z.enum(['mcq', 'true_false', 'short_answer']),
+    question_text: z.string().trim().min(1, 'Question text is required').max(2000),
+    options: z.array(z.string().trim().min(1, 'Options can’t be empty').max(500)).max(8).optional(),
+    correct_answer: z.string().trim().min(1, 'The correct answer is required').max(1000),
+    points: z.coerce.number().int().min(1, 'Points must be at least 1').max(100).default(1),
+  })
+  .superRefine((q, ctx) => {
+    const fail = (message: string, path: string) =>
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message, path: [path] });
+
+    if (q.type === 'mcq') {
+      const options = q.options ?? [];
+      if (options.length < 2) fail('A multiple-choice question needs at least 2 options', 'options');
+      const lower = options.map((o) => o.toLowerCase());
+      if (new Set(lower).size !== lower.length) fail('Options must all be different', 'options');
+      if (!lower.includes(q.correct_answer.toLowerCase())) {
+        fail('The correct answer must be one of the options', 'correct_answer');
+      }
+    } else if (q.type === 'true_false') {
+      if ((q.options ?? []).length > 0) fail('True/false questions have no options', 'options');
+      if (!['true', 'false'].includes(q.correct_answer.toLowerCase())) {
+        fail('The correct answer must be true or false', 'correct_answer');
+      }
+    } else {
+      if ((q.options ?? []).length > 0) fail('Short-answer questions have no options', 'options');
+      if (q.correct_answer.split('|').some((alt) => alt.trim() === '')) {
+        fail('Accepted answers can’t be empty (check for a stray “|”)', 'correct_answer');
+      }
+    }
+  });
+
+export const submitQuizAttemptSchema = z.object({
+  quiz_id: z.string().uuid('Invalid quiz ID'),
+  // question id -> the student's answer
+  answers: z.record(z.string().max(2000)),
+});
+
 export const gradeSchema = z.object({
   score: z.coerce.number().min(0).max(100),
   feedback: z.string().optional(),
@@ -160,6 +219,7 @@ export type CourseInput = z.infer<typeof courseSchema>;
 export type ModuleInput = z.infer<typeof moduleSchema>;
 export type AssignmentInput = z.infer<typeof assignmentSchema>;
 export type GradeInput = z.infer<typeof gradeSchema>;
+export type QuestionInput = z.infer<typeof questionInputSchema>;
 export type CreateAssignmentInput = z.infer<typeof createAssignmentSchema>;
 export type GradeSubmissionInput = z.infer<typeof gradeSubmissionSchema>;
 export type AttendanceInput = z.infer<typeof attendanceSchema>;

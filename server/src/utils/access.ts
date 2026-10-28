@@ -130,3 +130,48 @@ export async function assertCanManageAssignment(
     course_id: a.course_id as string,
   };
 }
+
+export interface ManagedQuiz {
+  id: string;
+  course_id: string;
+  title: string;
+  is_published: boolean;
+  time_limit_minutes: number | null;
+}
+
+/**
+ * Admins may manage any quiz; teachers only quizzes in courses they teach.
+ * Throws 404 for an unknown quiz and 403 for someone else's.
+ */
+export async function assertCanManageQuiz(user: AuthUser, quizId: string): Promise<ManagedQuiz> {
+  const [q] = await sql`
+    SELECT q.id, q.course_id, q.title, q.is_published, q.time_limit_minutes,
+           te.user_id AS teacher_user_id
+    FROM quizzes q
+    JOIN courses c ON c.id = q.course_id
+    JOIN teachers te ON te.id = c.teacher_id
+    WHERE q.id = ${quizId}
+  `;
+  if (!q) throw httpError(404, 'Quiz not found');
+  if (user.role !== 'admin' && !(user.role === 'teacher' && q.teacher_user_id === user.id)) {
+    throw httpError(403, 'You can only manage quizzes in your own courses');
+  }
+  return {
+    id: q.id as string,
+    course_id: q.course_id as string,
+    title: q.title as string,
+    is_published: q.is_published as boolean,
+    time_limit_minutes: q.time_limit_minutes as number | null,
+  };
+}
+
+/** Once a student has taken a quiz its questions are frozen, so graded results stay meaningful. */
+export async function assertQuizQuestionsEditable(quizId: string): Promise<void> {
+  const [row] = await sql`SELECT COUNT(*)::int AS n FROM quiz_attempts WHERE quiz_id = ${quizId}`;
+  if (row && row.n > 0) {
+    throw httpError(
+      409,
+      'Students have already taken this quiz, so its questions can no longer be changed.',
+    );
+  }
+}

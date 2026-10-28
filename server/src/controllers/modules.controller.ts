@@ -8,7 +8,6 @@ import {
   assertHttpUrl,
   httpError,
   parseUuid,
-  rethrowDbError,
 } from '../utils/access.js';
 
 export async function listModules(req: Request, res: Response): Promise<void> {
@@ -89,20 +88,19 @@ export async function updateModule(req: Request, res: Response): Promise<void> {
 export async function deleteModule(req: Request, res: Response): Promise<void> {
   const id = parseUuid(req.params.id, 'module id');
 
-  try {
-    const [module] = await sql`
-      DELETE FROM modules WHERE id = ${id}
-      RETURNING id
-    `;
-    if (!module) {
-      const err = new Error('Module not found') as AppError;
-      err.statusCode = 404;
-      throw err;
-    }
-  } catch (err) {
-    rethrowDbError(err, {
-      foreignKey: 'This module still has assignments and can’t be deleted. Remove them first.',
-    });
+  // The database cascades deletes from a module to its assignments and their submissions,
+  // so refuse unless the module has no assignments.
+  const [usage] = await sql`
+    SELECT (SELECT COUNT(*) FROM assignments WHERE module_id = ${id})::int AS assignments
+  `;
+  if (usage && usage.assignments > 0) {
+    throw httpError(
+      409,
+      `This module still has ${usage.assignments} assignment${usage.assignments === 1 ? '' : 's'} and can’t be deleted. Remove them first.`,
+    );
   }
+
+  const [module] = await sql`DELETE FROM modules WHERE id = ${id} RETURNING id`;
+  if (!module) throw httpError(404, 'Module not found');
   res.json({ message: 'Module deleted' });
 }
