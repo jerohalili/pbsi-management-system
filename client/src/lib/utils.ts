@@ -32,6 +32,12 @@ export function formatGPA(value: number | string | null | undefined): string {
   return Number.isFinite(n) ? n.toFixed(2) : 'N/A';
 }
 
+/** A grade percentage for display, e.g. "87.50%"; N/A when there is nothing to show. */
+export function formatAverage(value: number | string | null | undefined): string {
+  const text = formatGPA(value);
+  return text === 'N/A' ? text : `${text}%`;
+}
+
 /** ISO timestamp -> value for <input type="datetime-local"> (in the browser's time zone). */
 export function toLocalInputValue(iso: string): string {
   const d = new Date(iso);

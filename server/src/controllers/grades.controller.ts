@@ -48,26 +48,6 @@ export async function listGrades(_req: Request, res: Response): Promise<void> {
   res.json({ grades });
 }
 
-export async function createGrade(req: Request, res: Response): Promise<void> {
-  const { student_id, course_id, assessment_type, assessment_id, score, feedback, term } =
-    req.body as {
-      student_id: string;
-      course_id: string;
-      assessment_type: string;
-      assessment_id: string;
-      score: number;
-      feedback?: string;
-      term: string;
-    };
-
-  const [grade] = await sql`
-    INSERT INTO grades (student_id, course_id, assessment_type, assessment_id, score, feedback, term)
-    VALUES (${student_id}, ${course_id}, ${assessment_type}, ${assessment_id}, ${score}, ${feedback}, ${term})
-    RETURNING id, student_id, course_id, assessment_type, assessment_id, score, feedback, term, created_at
-  `;
-  res.status(201).json({ grade });
-}
-
 export async function getStudentGPA(_req: Request, res: Response): Promise<void> {
   const { student_id: rawId } = _req.params as { student_id: string };
   const user = _req.user as AuthUser;

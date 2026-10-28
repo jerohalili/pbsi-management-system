@@ -3,7 +3,7 @@ import { useQueryClient } from 'react-query';
 import { KeyRound, Pencil, UserCheck, UserPlus, UserX } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useGet } from '@/hooks/useApi.ts';
-import { formatGPA } from '@/lib/utils.ts';
+import { formatAverage } from '@/lib/utils.ts';
 import api from '@/lib/api.ts';
 import { useToast } from '@/components/ui/toast.tsx';
 import { Button } from '@/components/ui/button.tsx';
@@ -13,6 +13,9 @@ import { Badge } from '@/components/ui/badge.tsx';
 import { UserFormDialog, ManagedUser } from '@/components/users/UserFormDialog.tsx';
 import { ResetPasswordDialog } from '@/components/users/ResetPasswordDialog.tsx';
 import { ConfirmDialog } from '@/components/users/ConfirmDialog.tsx';
+
+// Average grade (percent) at or above which the badge turns green.
+const PASSING_AVERAGE = 75;
 
 interface Student {
   id: string;
@@ -25,7 +28,7 @@ interface Student {
   date_of_birth: string | null;
   address: string | null;
   is_active: boolean;
-  cumulative_gpa: number | string | null;
+  average_grade: number | string | null;
   subjects_assigned: string[] | null;
 }
 
@@ -110,7 +113,7 @@ export default function StudentsPage() {
                 <TableHead className="w-28">ID</TableHead>
                 <TableHead>Name</TableHead>
                 <TableHead>Email</TableHead>
-                <TableHead className="w-24">GPA</TableHead>
+                <TableHead className="w-28">Average grade</TableHead>
                 <TableHead className="w-32">Subjects</TableHead>
                 <TableHead className="w-52 text-right">Actions</TableHead>
               </TableRow>
@@ -133,8 +136,8 @@ export default function StudentsPage() {
                     </TableCell>
                     <TableCell className="text-muted-foreground">{s.email}</TableCell>
                     <TableCell>
-                      <Badge variant={Number(s.cumulative_gpa ?? 0) >= 3.5 ? 'success' : 'default'}>
-                        {formatGPA(s.cumulative_gpa)}
+                      <Badge variant={Number(s.average_grade ?? 0) >= PASSING_AVERAGE ? 'success' : 'default'}>
+                        {formatAverage(s.average_grade)}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-muted-foreground text-sm">

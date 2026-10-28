@@ -1,6 +1,6 @@
 import { useParams } from 'react-router-dom';
 import { useGet } from '@/hooks/useApi.ts';
-import { formatGPA } from '@/lib/utils.ts';
+import { formatAverage } from '@/lib/utils.ts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card.tsx';
 import { Badge } from '@/components/ui/badge.tsx';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar.tsx';
@@ -10,7 +10,7 @@ interface Student {
   id: string;
   student_id: string;
   enrollment_date: string | null;
-  cumulative_gpa: number | string | null;
+  average_grade: number | string | null;
   subjects_assigned: string[] | null;
   user_id: string;
   email: string;
@@ -112,15 +112,15 @@ export default function StudentDetailPage() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <GraduationCap className="w-5 h-5" /> Cumulative GPA
+                <GraduationCap className="w-5 h-5" /> Average grade
               </CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col items-center justify-center py-8">
               <div className="text-5xl font-bold">
-                {formatGPA(s.cumulative_gpa)}
+                {formatAverage(s.average_grade)}
               </div>
               <p className="text-muted-foreground text-sm mt-2">
-                Cumulative grade point average across all terms.
+                Average of all graded assignments and quizzes.
               </p>
             </CardContent>
           </Card>

@@ -2,7 +2,7 @@ import useAuth from '@/hooks/useAuth.ts';
 import { useEffect, useState } from 'react';
 
 import api from '@/lib/api.ts';
-import { formatGPA } from '@/lib/utils.ts';
+import { formatAverage } from '@/lib/utils.ts';
 import { useToast } from '@/components/ui/toast.tsx';
 
 interface Grade {
@@ -23,12 +23,6 @@ interface Grade {
 interface GPA {
   cumulative_gpa: number | null;
   total_assessments: number;
-}
-
-/** Percentage for display, e.g. "80.00%"; N/A when there is nothing to show. */
-function formatAverage(value: number | string | null | undefined): string {
-  const text = formatGPA(value);
-  return text === 'N/A' ? text : `${text}%`;
 }
 
 export default function GradesPage() {

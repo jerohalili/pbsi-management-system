@@ -12,7 +12,8 @@ export async function listStudents(_req: Request, res: Response): Promise<void> 
   const subjectParam = subject ?? '';
 
   const students = await sql`
-    SELECT s.id, s.student_id, s.enrollment_date, s.cumulative_gpa,
+    SELECT s.id, s.student_id, s.enrollment_date,
+           (SELECT ROUND(AVG(g.score)::numeric, 2)::float8 FROM grades g WHERE g.student_id = s.id) AS average_grade,
            s.subjects_assigned,
            u.id as user_id, u.email, u.is_active,
            p.first_name, p.last_name, p.phone, p.date_of_birth,
@@ -34,7 +35,8 @@ export async function getStudent(_req: Request, res: Response): Promise<void> {
   const { id } = _req.params as { id: string };
 
   const [student] = await sql`
-    SELECT s.id, s.student_id, s.enrollment_date, s.cumulative_gpa,
+    SELECT s.id, s.student_id, s.enrollment_date,
+           (SELECT ROUND(AVG(g.score)::numeric, 2)::float8 FROM grades g WHERE g.student_id = s.id) AS average_grade,
            s.subjects_assigned,
            u.id as user_id, u.email, u.is_active,
            p.first_name, p.last_name, p.phone, p.date_of_birth,
@@ -56,7 +58,7 @@ export async function exportStudents(_req: Request, res: Response): Promise<void
   const students = await sql`
     SELECT s.student_id, p.first_name, p.last_name, u.email,
            p.phone, p.date_of_birth, s.enrollment_date,
-           s.cumulative_gpa, s.subjects_assigned
+           (SELECT ROUND(AVG(g.score)::numeric, 2)::float8 FROM grades g WHERE g.student_id = s.id) AS average_grade, s.subjects_assigned
     FROM students s
     JOIN users u ON u.id = s.user_id
     JOIN profiles p ON p.user_id = u.id
@@ -71,7 +73,7 @@ export async function exportStudents(_req: Request, res: Response): Promise<void
     'phone',
     'date_of_birth',
     'enrollment_date',
-    'cumulative_gpa',
+    'average_grade',
     'subjects_assigned',
   ];
 
