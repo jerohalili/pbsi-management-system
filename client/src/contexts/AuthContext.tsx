@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import api from '@/lib/api.ts';
+import api, { AUTH_EXPIRED_EVENT } from '@/lib/api.ts';
 import { useNavigate } from 'react-router-dom';
 
 export type UserRole = 'admin' | 'teacher' | 'student';
@@ -43,6 +43,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     loadUser();
   }, [loadUser]);
+
+  // The session ended while the app was open (e.g. the account was deactivated).
+  useEffect(() => {
+    const onExpired = () => {
+      setUser(null);
+      navigate('/login', { replace: true });
+    };
+    window.addEventListener(AUTH_EXPIRED_EVENT, onExpired);
+    return () => window.removeEventListener(AUTH_EXPIRED_EVENT, onExpired);
+  }, [navigate]);
 
   const login = async (email: string, password: string) => {
     const { data } = await api.post<{ user: AuthUser; access_token: string }>(

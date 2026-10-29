@@ -324,8 +324,12 @@ async function setActive(req: Request, res: Response, active: boolean): Promise<
     if (target.role === 'admin') await assertAnotherActiveAdminExists(id);
   }
 
+  // Deactivating also ends the person's current sessions, immediately.
   const [user] = await sql`
-    UPDATE users SET is_active = ${active} WHERE id = ${id}
+    UPDATE users
+    SET is_active = ${active},
+        tokens_valid_after = CASE WHEN ${active}::boolean THEN tokens_valid_after ELSE now() END
+    WHERE id = ${id}
     RETURNING id, email, is_active
   `;
 
@@ -357,7 +361,8 @@ export async function resetPassword(req: Request, res: Response): Promise<void> 
   assertCanManageRole(actor, target.role);
 
   const passwordHash = await hashPassword(password);
-  await sql`UPDATE users SET password_hash = ${passwordHash} WHERE id = ${id}`;
+  // A reset also signs the person out everywhere (anyone holding the old password loses access).
+  await sql`UPDATE users SET password_hash = ${passwordHash}, tokens_valid_after = now() WHERE id = ${id}`;
 
   await writeAudit(req, 'user.reset_password', id, null, null);
 

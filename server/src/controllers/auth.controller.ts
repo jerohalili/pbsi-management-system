@@ -6,6 +6,7 @@ import {
   verifyRefreshToken,
 } from '../utils/jwt.js';
 import { comparePassword } from '../utils/password.js';
+import { isTokenRevoked } from '../utils/sessions.js';
 import type { AppError } from '../middleware/errorHandler.js';
 
 const COOKIE_OPTIONS: Record<string, unknown> = {
@@ -80,10 +81,13 @@ export async function refresh(req: Request, res: Response): Promise<void> {
   try {
     const decoded = verifyRefreshToken(token);
     const [account] = await sql`
-      SELECT is_active FROM users WHERE id = ${decoded.sub}
+      SELECT is_active, tokens_valid_after FROM users WHERE id = ${decoded.sub}
     `;
     if (!account || !account.is_active) {
       throw new Error('Account is not active');
+    }
+    if (isTokenRevoked(decoded.iat, account.tokens_valid_after)) {
+      throw new Error('Session has ended');
     }
     const accessToken = signAccessToken({
       sub: decoded.sub,

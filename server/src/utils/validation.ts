@@ -36,6 +36,12 @@ export const updateUserSchema = createUserSchema
   .omit({ password: true, role: true })
   .partial();
 
+// A teacher's or admin's manual change to a recorded grade (a percentage, 0-100).
+export const overrideGradeSchema = z.object({
+  score: z.coerce.number().min(0, 'Score can’t be negative').max(100, 'Score can’t be more than 100'),
+  feedback: z.string().trim().max(2000).optional(),
+});
+
 export const resetPasswordSchema = z.object({
   password: z
     .string()
