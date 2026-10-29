@@ -8,7 +8,7 @@
 -- 1a. Bad times or days.
 SELECT id, day_of_week, period_number, start_time, end_time
 FROM timetable
-WHERE end_time <= start_time OR day_of_week NOT BETWEEN 1 AND 5 OR period_number < 1;
+WHERE end_time <= start_time OR day_of_week NOT BETWEEN 1 AND 6 OR period_number < 1;
 
 -- 1b. The same teacher twice in one period.
 SELECT day_of_week, period_number, teacher_id, COUNT(*) AS copies
@@ -28,13 +28,15 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'timetable_times_check') THEN
     ALTER TABLE timetable ADD CONSTRAINT timetable_times_check CHECK (end_time > start_time);
   END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'timetable_day_check') THEN
-    ALTER TABLE timetable ADD CONSTRAINT timetable_day_check CHECK (day_of_week BETWEEN 1 AND 5);
-  END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'timetable_period_check') THEN
     ALTER TABLE timetable ADD CONSTRAINT timetable_period_check CHECK (period_number >= 1);
   END IF;
 END $$;
+
+-- Days are 1 = Monday ... 6 = Saturday. (An earlier version of this script allowed Monday-Friday
+-- only, so any old day check is replaced.)
+ALTER TABLE timetable DROP CONSTRAINT IF EXISTS timetable_day_check;
+ALTER TABLE timetable ADD CONSTRAINT timetable_day_check CHECK (day_of_week BETWEEN 1 AND 6);
 
 CREATE UNIQUE INDEX IF NOT EXISTS timetable_teacher_slot_key
   ON timetable (day_of_week, period_number, teacher_id);

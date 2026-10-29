@@ -203,7 +203,7 @@ const endsAfterItStarts = (v: { start_time: string; end_time: string }): boolean
 const END_AFTER_START = { message: 'End time must be after the start time', path: ['end_time'] };
 
 const timetableSlot = z.object({
-  day_of_week: z.coerce.number().int().min(1).max(5),
+  day_of_week: z.coerce.number().int().min(1).max(6),
   period_number: z.coerce.number().int().min(1).max(12),
   start_time: clockTime,
   end_time: clockTime,

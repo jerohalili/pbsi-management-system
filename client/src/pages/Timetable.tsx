@@ -17,6 +17,9 @@ import {
 
 type View = 'mine' | 'all';
 
+// One label column plus one column per school day (Monday-Saturday).
+const GRID_COLS = 'grid grid-cols-[88px_repeat(6,minmax(0,1fr))]';
+
 export default function TimetablePage() {
   const { user, isAuthenticated, isLoading } = useAuth();
   const { toast } = useToast();
@@ -97,7 +100,7 @@ export default function TimetablePage() {
   // A teacher schedules only the courses they teach; an admin any course.
   const schedulable = isTeacher ? courses.filter((c) => c.is_mine) : courses;
   const canAdd = canEdit && schedulable.length > 0;
-  // JS getDay(): Sunday = 0, so Monday-Friday are already 1-5.
+  // JS getDay(): Sunday = 0, so Monday-Saturday are already 1-6.
   const today = new Date().getDay();
 
   const openCreate = (day?: number, period?: number) => {
@@ -182,8 +185,8 @@ export default function TimetablePage() {
         )}
 
         <div className="rounded-xl border border-site-border bg-site-card overflow-x-auto">
-          <div className="min-w-[860px]">
-            <div className="grid grid-cols-[88px_repeat(5,minmax(0,1fr))] border-b border-site-border">
+          <div className="min-w-[980px]">
+            <div className={cn(GRID_COLS, 'border-b border-site-border')}>
               <div className="px-3 py-4 font-bold text-site-text border-r border-site-border">Period</div>
               {DAY_SHORT.map((day, i) => (
                 <div
@@ -201,7 +204,7 @@ export default function TimetablePage() {
             {periods.map((period) => (
               <div
                 key={period}
-                className="grid grid-cols-[88px_repeat(5,minmax(0,1fr))] border-b border-site-border last:border-b-0"
+                className={cn(GRID_COLS, 'border-b border-site-border last:border-b-0')}
               >
                 <div className="px-3 py-3 border-r border-site-border bg-gray-50 dark:bg-muted/40">
                   <div className="font-medium text-site-text">{period}</div>

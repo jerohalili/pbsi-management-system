@@ -14,7 +14,7 @@ import { recordAudit } from '../utils/audit.js';
 import type { AuthUser } from '../types/index.js';
 import type { TimetableInput, TimetableUpdateInput } from '../utils/validation.js';
 
-const DAY_NAMES = ['', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+const DAY_NAMES = ['', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const SLOT_TAKEN = 'That period is already taken for this teacher, room or course.';
 
 function currentUser(req: Request): AuthUser {

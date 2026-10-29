@@ -22,8 +22,8 @@ export interface TimetableCourse {
   is_mine: boolean;
 }
 
-export const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
-export const DAY_SHORT = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+export const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+export const DAY_SHORT = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 /** The grid always shows at least this many periods; it grows if an entry uses a later one. */
 export const MIN_PERIODS = 8;
 /** Highest period number the API accepts. */
