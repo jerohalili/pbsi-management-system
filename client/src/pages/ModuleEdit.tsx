@@ -43,9 +43,6 @@ export default function ModuleEditPage() {
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [videoUrl, setVideoUrl] = useState('');
-  const [attachmentUrl, setAttachmentUrl] = useState('');
-  const [orderIndex, setOrderIndex] = useState('0');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -54,9 +51,6 @@ export default function ModuleEditPage() {
     if (!module) return;
     setTitle(module.title);
     setDescription(module.rich_description ?? '');
-    setVideoUrl(module.video_url ?? '');
-    setAttachmentUrl(module.attachment_url ?? '');
-    setOrderIndex(String(module.order_index));
     setError('');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [module?.id]);
@@ -78,9 +72,6 @@ export default function ModuleEditPage() {
       await api.patch(`/modules/${module.id}`, {
         title: title.trim(),
         rich_description: description.trim(),
-        video_url: videoUrl.trim(),
-        attachment_url: attachmentUrl.trim(),
-        order_index: Number(orderIndex),
       });
       queryClient.invalidateQueries('course');
       queryClient.invalidateQueries('courses');
@@ -159,39 +150,6 @@ export default function ModuleEditPage() {
           <div className="space-y-2">
             <Label htmlFor="me-desc">Lesson notes (optional)</Label>
             <Textarea id="me-desc" rows={5} value={description} onChange={(e) => setDescription(e.target.value)} />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="me-video">Video link (optional)</Label>
-            <Input
-              id="me-video"
-              type="url"
-              placeholder="https://…"
-              value={videoUrl}
-              onChange={(e) => setVideoUrl(e.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="me-attach">Material link (optional)</Label>
-            <Input
-              id="me-attach"
-              type="url"
-              placeholder="https://…"
-              value={attachmentUrl}
-              onChange={(e) => setAttachmentUrl(e.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="me-order">Position</Label>
-            <Input
-              id="me-order"
-              type="number"
-              min={0}
-              step={1}
-              required
-              value={orderIndex}
-              onChange={(e) => setOrderIndex(e.target.value)}
-            />
-            <p className="text-xs text-muted-foreground">Lower numbers appear first.</p>
           </div>
 
           {error && <p className="text-sm text-destructive">{error}</p>}

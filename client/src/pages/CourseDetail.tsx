@@ -1,10 +1,25 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useQueryClient } from 'react-query';
-import { ArrowLeft, ArrowRight, ClipboardList, ExternalLink, FileText, HelpCircle, Pencil, Plus, Trash2, Video } from 'lucide-react';
+import {
+  ArrowDown,
+  ArrowLeft,
+  ArrowRight,
+  ArrowUp,
+  ChevronDown,
+  ChevronRight,
+  ChevronsDownUp,
+  ChevronsUpDown,
+  ClipboardList,
+  HelpCircle,
+  Pencil,
+  Plus,
+  Trash2,
+} from 'lucide-react';
 import useAuth from '@/hooks/useAuth.ts';
 import { useGet } from '@/hooks/useApi.ts';
 import api from '@/lib/api.ts';
+import { getErrorMessage } from '@/lib/errors.ts';
 import { useToast } from '@/components/ui/toast.tsx';
 import { Button } from '@/components/ui/button.tsx';
 import { Badge } from '@/components/ui/badge.tsx';
@@ -43,10 +58,6 @@ interface ModuleContent {
   created_at: string;
 }
 
-// Module links come from users, so only ever render real web links.
-const isWebUrl = (value: string | null | undefined): value is string =>
-  !!value && /^https?:\/\//i.test(value);
-
 export default function CourseDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
@@ -59,6 +70,9 @@ export default function CourseDetailPage() {
   const [creatingAssignment, setCreatingAssignment] = useState(false);
   const [creatingQuiz, setCreatingQuiz] = useState(false);
   const [creatingModule, setCreatingModule] = useState(false);
+  // Collapsed modules show only their title and lesson notes. Everything starts expanded.
+  const [collapsedModules, setCollapsedModules] = useState<Set<string>>(new Set());
+  const [reordering, setReordering] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<
     | { kind: 'course' }
     | { kind: 'module'; module: Module }
@@ -132,6 +146,48 @@ export default function CourseDetailPage() {
     queryClient.invalidateQueries('assignments');
     queryClient.invalidateQueries('quizzes');
     await fetchModuleContents();
+  };
+
+  const allCollapsed = modules.length > 0 && modules.every((m) => collapsedModules.has(m.id));
+
+  const toggleModule = (moduleId: string) => {
+    setCollapsedModules((prev) => {
+      const next = new Set(prev);
+      if (next.has(moduleId)) next.delete(moduleId);
+      else next.add(moduleId);
+      return next;
+    });
+  };
+
+  const toggleAllModules = () => {
+    setCollapsedModules(allCollapsed ? new Set() : new Set(modules.map((m) => m.id)));
+  };
+
+  // Swaps a module with its neighbour. The list updates right away and rolls back if saving fails.
+  const moveModule = async (index: number, direction: 'up' | 'down') => {
+    const target = direction === 'up' ? index - 1 : index + 1;
+    if (!data || !course || reordering || target < 0 || target >= modules.length) return;
+
+    const reordered = [...modules];
+    [reordered[index], reordered[target]] = [reordered[target], reordered[index]];
+
+    const queryKey = ['course', id ?? ''];
+    const previous = queryClient.getQueryData(queryKey);
+    queryClient.setQueryData(queryKey, {
+      ...data,
+      modules: reordered.map((m, i) => ({ ...m, order_index: i })),
+    });
+
+    setReordering(true);
+    try {
+      await api.patch(`/modules/course/${course.id}/reorder`, { module_ids: reordered.map((m) => m.id) });
+    } catch (err) {
+      queryClient.setQueryData(queryKey, previous);
+      toast({ title: 'Couldn’t reorder modules', description: getErrorMessage(err), variant: 'destructive' });
+    } finally {
+      setReordering(false);
+      queryClient.invalidateQueries('course');
+    }
   };
 
   const deleteCourse = async () => {
@@ -236,11 +292,23 @@ export default function CourseDetailPage() {
       <section className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-bold">Modules</h2>
-          {canEdit && (
-            <Button onClick={() => setCreatingModule(true)}>
-              <Plus className="w-4 h-4 mr-2" /> Add module
-            </Button>
-          )}
+          <div className="flex items-center gap-2">
+            {modules.length > 0 && (
+              <Button variant="outline" onClick={toggleAllModules}>
+                {allCollapsed ? (
+                  <ChevronsUpDown className="w-4 h-4 mr-2" />
+                ) : (
+                  <ChevronsDownUp className="w-4 h-4 mr-2" />
+                )}
+                {allCollapsed ? 'Expand all' : 'Collapse all'}
+              </Button>
+            )}
+            {canEdit && (
+              <Button onClick={() => setCreatingModule(true)}>
+                <Plus className="w-4 h-4 mr-2" /> Add module
+              </Button>
+            )}
+          </div>
         </div>
 
         {modules.length === 0 ? (
@@ -250,54 +318,79 @@ export default function CourseDetailPage() {
           </Card>
         ) : (
           <div className="space-y-3">
-            {modules.map((m, index) => (
-              <Card key={m.id} className="p-5">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="space-y-2 min-w-0">
-                    <h3 className="font-bold">
-                      <span className="text-muted-foreground mr-2">{index + 1}.</span>
-                      {m.title}
-                    </h3>
-                    {m.rich_description && (
-                      <p className="text-sm text-muted-foreground whitespace-pre-wrap break-words">{m.rich_description}</p>
-                    )}
-                    {(isWebUrl(m.video_url) || isWebUrl(m.attachment_url)) && (
-                      <div className="flex flex-wrap gap-4 pt-1">
-                        {isWebUrl(m.video_url) && (
-                          <a href={m.video_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center text-sm text-primary hover:underline">
-                            <Video className="w-4 h-4 mr-1" /> Watch video <ExternalLink className="w-3 h-3 ml-1" />
-                          </a>
+            {modules.map((m, index) => {
+              const isCollapsed = collapsedModules.has(m.id);
+              return (
+                <Card key={m.id} className="p-5">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-start gap-2 min-w-0">
+                      <button
+                        type="button"
+                        className="mt-0.5 shrink-0 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        aria-expanded={!isCollapsed}
+                        aria-label={`${isCollapsed ? 'Expand' : 'Collapse'} module ${m.title}`}
+                        title={isCollapsed ? 'Expand' : 'Collapse'}
+                        onClick={() => toggleModule(m.id)}
+                      >
+                        {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                      </button>
+                      <div className="space-y-2 min-w-0">
+                        <h3 className="font-bold">
+                          <span className="text-muted-foreground mr-2">{index + 1}.</span>
+                          {m.title}
+                        </h3>
+                        {m.rich_description && (
+                          <p className="text-sm text-muted-foreground whitespace-pre-wrap break-words">{m.rich_description}</p>
                         )}
-                        {isWebUrl(m.attachment_url) && (
-                          <a href={m.attachment_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center text-sm text-primary hover:underline">
-                            <FileText className="w-4 h-4 mr-1" /> Open material <ExternalLink className="w-3 h-3 ml-1" />
-                          </a>
+
+                        {/* Module content blocks */}
+                        {!isCollapsed && <ModuleContentViewer contents={allContents[m.id] ?? []} />}
+                      </div>
+                    </div>
+                    {(canEdit || isAdmin) && (
+                      <div className="flex shrink-0 gap-2">
+                        {canEdit && (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              aria-label={`Move module ${m.title} up`}
+                              title="Move up"
+                              disabled={index === 0 || reordering}
+                              onClick={() => moveModule(index, 'up')}
+                            >
+                              <ArrowUp className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              aria-label={`Move module ${m.title} down`}
+                              title="Move down"
+                              disabled={index === modules.length - 1 || reordering}
+                              onClick={() => moveModule(index, 'down')}
+                            >
+                              <ArrowDown className="w-4 h-4" />
+                            </Button>
+                          </>
+                        )}
+                        {canEdit && (
+                          <Button asChild size="sm" aria-label={`Edit module ${m.title}`}>
+                            <Link to={`/courses/${course.id}/modules/${m.id}/edit`}>
+                              <Pencil className="w-4 h-4 mr-2" /> Edit
+                            </Link>
+                          </Button>
+                        )}
+                        {canEdit && (
+                          <Button variant="destructive" size="icon" aria-label={`Delete module ${m.title}`} title="Delete" onClick={() => deleteModule(m)}>
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
                         )}
                       </div>
                     )}
-
-                    {/* Module content blocks */}
-                    <ModuleContentViewer contents={allContents[m.id] ?? []} />
                   </div>
-                  {(canEdit || isAdmin) && (
-                    <div className="flex shrink-0 gap-2">
-                      {canEdit && (
-                        <Button asChild size="sm" aria-label={`Edit module ${m.title}`}>
-                          <Link to={`/courses/${course.id}/modules/${m.id}/edit`}>
-                            <Pencil className="w-4 h-4 mr-2" /> Edit
-                          </Link>
-                        </Button>
-                      )}
-                      {canEdit && (
-                        <Button variant="destructive" size="icon" aria-label={`Delete module ${m.title}`} title="Delete" onClick={() => deleteModule(m)}>
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </Card>
-            ))}
+                </Card>
+              );
+            })}
           </div>
         )}
       </section>

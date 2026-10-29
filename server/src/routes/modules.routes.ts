@@ -5,6 +5,7 @@ import {
   createModule,
   updateModule,
   deleteModule,
+  reorderModules,
   listModuleContents,
   createModuleContent,
   updateModuleContent,
@@ -32,6 +33,11 @@ router.post(
   restrictTo('admin', 'teacher'),
   validate(moduleSchema),
   asyncHandler(createModule),
+);
+router.patch(
+  '/course/:course_id/reorder',
+  restrictTo('admin', 'teacher'),
+  asyncHandler(reorderModules),
 );
 router.patch(
   '/:id',

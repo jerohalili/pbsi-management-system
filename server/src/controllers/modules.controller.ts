@@ -5,6 +5,7 @@ import {
   moduleContentSchema,
   moduleSchema,
   reorderModuleContentsSchema,
+  reorderModulesSchema,
   updateModuleContentSchema,
 } from '../utils/validation.js';
 import { deleteFromCloudinary } from '../utils/upload.js';
@@ -224,6 +225,40 @@ export async function deleteModuleContent(req: Request, res: Response): Promise<
     );
   }
   res.json({ message: 'Content deleted' });
+}
+
+/**
+ * Sets the order of a course's modules in one transaction. The client sends the full list of
+ * module ids in display order and the server renumbers them 0..n-1, so duplicate or gapped
+ * positions in old data are repaired as a side effect.
+ */
+export async function reorderModules(req: Request, res: Response): Promise<void> {
+  if (!req.user) throw httpError(401, 'Not authenticated');
+  const courseId = parseUuid(req.params.course_id, 'course id');
+  const input = reorderModulesSchema.parse(req.body);
+
+  await assertCanManageCourse(req.user, courseId);
+
+  const ids = input.module_ids;
+  if (new Set(ids).size !== ids.length) throw httpError(400, 'Duplicate module ids');
+
+  const owned = await sql`SELECT id FROM modules WHERE course_id = ${courseId}`;
+  const ownedIds = new Set(owned.map((row) => row.id as string));
+  if (ids.length !== ownedIds.size || !ids.every((id) => ownedIds.has(id))) {
+    throw httpError(409, 'This course’s modules changed. Refresh the page and try again.');
+  }
+
+  if (ids.length === 0) {
+    res.json({ message: 'Nothing to reorder' });
+    return;
+  }
+
+  const statements = ids.map(
+    (id, index) =>
+      sql`UPDATE modules SET order_index = ${index} WHERE id = ${id} AND course_id = ${courseId}`,
+  );
+  await sql.transaction(statements);
+  res.json({ message: 'Reordered' });
 }
 
 export async function reorderModuleContents(req: Request, res: Response): Promise<void> {

@@ -263,5 +263,10 @@ export const reorderModuleContentsSchema = z.object({
     .max(200),
 });
 
+export const reorderModulesSchema = z.object({
+  // Every module of the course, in the order they should appear.
+  module_ids: z.array(z.string().uuid('Invalid module ID')).max(500),
+});
+
 export type ModuleContentInput = z.infer<typeof moduleContentSchema>;
 export type UpdateModuleContentInput = z.infer<typeof updateModuleContentSchema>;
