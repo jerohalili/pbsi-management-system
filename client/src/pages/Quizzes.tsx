@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { HelpCircle } from 'lucide-react';
+import { ArrowRight, HelpCircle } from 'lucide-react';
 import useAuth from '@/hooks/useAuth.ts';
 import { useGet } from '@/hooks/useApi.ts';
 import { Badge } from '@/components/ui/badge.tsx';
@@ -87,6 +87,9 @@ export default function QuizzesPage() {
                   <>
                     <TableHead className="w-28">Status</TableHead>
                     <TableHead className="w-40">Taken</TableHead>
+                    <TableHead className="w-28">
+                      <span className="sr-only">Open</span>
+                    </TableHead>
                   </>
                 )}
               </TableRow>
@@ -95,9 +98,13 @@ export default function QuizzesPage() {
               {quizzes.map((q) => (
                 <TableRow key={q.id}>
                   <TableCell>
-                    <Link to={`/quizzes/${q.id}`} className="font-medium hover:underline">
-                      {q.title}
-                    </Link>
+                    {q.can_manage ? (
+                      <span className="font-medium">{q.title}</span>
+                    ) : (
+                      <Link to={`/quizzes/${q.id}`} className="font-medium hover:underline">
+                        {q.title}
+                      </Link>
+                    )}
                     <div className="text-sm text-muted-foreground">{q.course_code} · {q.course_name}</div>
                   </TableCell>
                   <TableCell className="text-sm">
@@ -125,6 +132,15 @@ export default function QuizzesPage() {
                         {q.can_manage
                           ? `${q.attempt_count ?? 0}${q.average_score !== null ? ` · avg ${q.average_score}%` : ''}`
                           : '—'}
+                      </TableCell>
+                      <TableCell>
+                        {q.can_manage && (
+                          <Button asChild size="sm" aria-label={`Open quiz ${q.title}`}>
+                            <Link to={`/quizzes/${q.id}`}>
+                              Open <ArrowRight className="w-4 h-4 ml-2" />
+                            </Link>
+                          </Button>
+                        )}
                       </TableCell>
                     </>
                   )}

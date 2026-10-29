@@ -22,6 +22,7 @@ import Students from '@/pages/Students.tsx';
 import StudentDetail from '@/pages/StudentDetail.tsx';
 import Courses from '@/pages/Courses.tsx';
 import CourseDetail from '@/pages/CourseDetail.tsx';
+import ModuleEdit from '@/pages/ModuleEdit.tsx';
 import Assignments from '@/pages/Assignments.tsx';
 import AssignmentDetail from '@/pages/AssignmentDetail.tsx';
 import Quizzes from '@/pages/Quizzes.tsx';
@@ -76,6 +77,7 @@ const App = () => {
           <Route path="students/:id" element={<ProtectedRoute><StudentDetail /></ProtectedRoute>} />
           <Route path="courses" element={<ProtectedRoute><Courses /></ProtectedRoute>} />
           <Route path="courses/:id" element={<ProtectedRoute><CourseDetail /></ProtectedRoute>} />
+          <Route path="courses/:courseId/modules/:moduleId/edit" element={<ProtectedRoute><ModuleEdit /></ProtectedRoute>} />
           <Route path="assignments" element={<ProtectedRoute><Assignments /></ProtectedRoute>} />
           <Route path="assignments/:id" element={<ProtectedRoute><AssignmentDetail /></ProtectedRoute>} />
           <Route path="quizzes" element={<ProtectedRoute><Quizzes /></ProtectedRoute>} />

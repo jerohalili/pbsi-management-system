@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ClipboardList } from 'lucide-react';
+import { ArrowRight, ClipboardList } from 'lucide-react';
 import useAuth from '@/hooks/useAuth.ts';
 import { useGet } from '@/hooks/useApi.ts';
 import { Button } from '@/components/ui/button.tsx';
@@ -95,6 +95,9 @@ export default function AssignmentsPage() {
                   <>
                     <TableHead className="w-24">Max</TableHead>
                     <TableHead className="w-40">Submissions</TableHead>
+                    <TableHead className="w-28">
+                      <span className="sr-only">Open</span>
+                    </TableHead>
                   </>
                 )}
               </TableRow>
@@ -103,9 +106,13 @@ export default function AssignmentsPage() {
               {assignments.map((a) => (
                 <TableRow key={a.id}>
                   <TableCell>
-                    <Link to={`/assignments/${a.id}`} className="font-medium hover:underline">
-                      {a.title}
-                    </Link>
+                    {a.can_manage ? (
+                      <span className="font-medium">{a.title}</span>
+                    ) : (
+                      <Link to={`/assignments/${a.id}`} className="font-medium hover:underline">
+                        {a.title}
+                      </Link>
+                    )}
                     <div className="text-sm text-muted-foreground">
                       {a.course_code} · {a.module_title}
                     </div>
@@ -125,6 +132,15 @@ export default function AssignmentsPage() {
                       <TableCell className="text-sm">{a.max_score}</TableCell>
                       <TableCell className="text-sm">
                         {a.can_manage ? `${a.submitted_count ?? 0} handed in · ${a.graded_count ?? 0} graded` : '—'}
+                      </TableCell>
+                      <TableCell>
+                        {a.can_manage && (
+                          <Button asChild size="sm" aria-label={`Open assignment ${a.title}`}>
+                            <Link to={`/assignments/${a.id}`}>
+                              Open <ArrowRight className="w-4 h-4 ml-2" />
+                            </Link>
+                          </Button>
+                        )}
                       </TableCell>
                     </>
                   )}

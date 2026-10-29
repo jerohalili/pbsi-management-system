@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useQueryClient } from 'react-query';
-import { ArrowLeft, ClipboardList, ExternalLink, FileText, HelpCircle, Pencil, Plus, Trash2, Video } from 'lucide-react';
+import { ArrowLeft, ArrowRight, ClipboardList, ExternalLink, FileText, HelpCircle, Pencil, Plus, Trash2, Video } from 'lucide-react';
 import useAuth from '@/hooks/useAuth.ts';
 import { useGet } from '@/hooks/useApi.ts';
 import api from '@/lib/api.ts';
@@ -47,8 +47,6 @@ interface ModuleContent {
 const isWebUrl = (value: string | null | undefined): value is string =>
   !!value && /^https?:\/\//i.test(value);
 
-type ModuleDialog = { mode: 'create' } | { mode: 'edit'; module: Module } | null;
-
 export default function CourseDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
@@ -60,7 +58,7 @@ export default function CourseDetailPage() {
   const [assignmentModuleId, setAssignmentModuleId] = useState<string | null>(null);
   const [creatingAssignment, setCreatingAssignment] = useState(false);
   const [creatingQuiz, setCreatingQuiz] = useState(false);
-  const [moduleDialog, setModuleDialog] = useState<ModuleDialog>(null);
+  const [creatingModule, setCreatingModule] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<
     | { kind: 'course' }
     | { kind: 'module'; module: Module }
@@ -239,7 +237,7 @@ export default function CourseDetailPage() {
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-bold">Modules</h2>
           {canEdit && (
-            <Button onClick={() => setModuleDialog({ mode: 'create' })}>
+            <Button onClick={() => setCreatingModule(true)}>
               <Plus className="w-4 h-4 mr-2" /> Add module
             </Button>
           )}
@@ -284,8 +282,10 @@ export default function CourseDetailPage() {
                   {(canEdit || isAdmin) && (
                     <div className="flex shrink-0 gap-2">
                       {canEdit && (
-                        <Button variant="ghost" size="icon" aria-label={`Edit module ${m.title}`} title="Edit" onClick={() => setModuleDialog({ mode: 'edit', module: m })}>
-                          <Pencil className="w-4 h-4" />
+                        <Button asChild size="sm" aria-label={`Edit module ${m.title}`}>
+                          <Link to={`/courses/${course.id}/modules/${m.id}/edit`}>
+                            <Pencil className="w-4 h-4 mr-2" /> Edit
+                          </Link>
                         </Button>
                       )}
                       {canEdit && (
@@ -325,9 +325,13 @@ export default function CourseDetailPage() {
                   <div className="space-y-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <HelpCircle className="w-4 h-4 text-muted-foreground shrink-0" />
-                      <Link to={`/quizzes/${q.id}`} className="font-medium hover:underline">
-                        {q.title}
-                      </Link>
+                      {q.can_manage ? (
+                        <span className="font-medium">{q.title}</span>
+                      ) : (
+                        <Link to={`/quizzes/${q.id}`} className="font-medium hover:underline">
+                          {q.title}
+                        </Link>
+                      )}
                       {q.can_manage && (
                         <Badge variant={q.is_published ? 'success' : 'warning'}>{q.is_published ? 'Published' : 'Draft'}</Badge>
                       )}
@@ -347,6 +351,13 @@ export default function CourseDetailPage() {
                         <Link to={`/quizzes/${q.id}`}>Take quiz</Link>
                       </Button>
                     ) : null}
+                    {q.can_manage && (
+                      <Button asChild size="sm" aria-label={`Open quiz ${q.title}`}>
+                        <Link to={`/quizzes/${q.id}`}>
+                          Open <ArrowRight className="w-4 h-4 ml-2" />
+                        </Link>
+                      </Button>
+                    )}
                     {q.can_manage && (
                       <Button
                         variant="destructive"
@@ -396,9 +407,13 @@ export default function CourseDetailPage() {
                   <div className="space-y-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <ClipboardList className="w-4 h-4 text-muted-foreground shrink-0" />
-                      <Link to={`/assignments/${a.id}`} className="font-medium hover:underline truncate">
-                        {a.title}
-                      </Link>
+                      {a.can_manage ? (
+                        <span className="font-medium truncate">{a.title}</span>
+                      ) : (
+                        <Link to={`/assignments/${a.id}`} className="font-medium hover:underline truncate">
+                          {a.title}
+                        </Link>
+                      )}
                       <span className="text-xs text-muted-foreground truncate">Module: {a.module_title}</span>
                     </div>
                     <p className="text-sm text-muted-foreground">
@@ -410,6 +425,13 @@ export default function CourseDetailPage() {
                     )}
                   </div>
                   <div className="flex shrink-0 gap-2">
+                    {a.can_manage && (
+                      <Button asChild size="sm" aria-label={`Open assignment ${a.title}`}>
+                        <Link to={`/assignments/${a.id}`}>
+                          Open <ArrowRight className="w-4 h-4 ml-2" />
+                        </Link>
+                      </Button>
+                    )}
                     {canEdit && (
                       <Button
                         variant="destructive"
@@ -474,15 +496,13 @@ export default function CourseDetailPage() {
       />
 
       <ModuleFormDialog
-        open={moduleDialog !== null}
-        onOpenChange={(open) => !open && setModuleDialog(null)}
-        mode={moduleDialog?.mode ?? 'create'}
+        open={creatingModule}
+        onOpenChange={setCreatingModule}
         courseId={course.id}
         nextOrderIndex={modules.length > 0 ? Math.max(...modules.map((m) => m.order_index)) + 1 : 0}
-        module={moduleDialog?.mode === 'edit' ? moduleDialog.module : null}
         onSaved={() => {
           refresh();
-          toast({ title: moduleDialog?.mode === 'edit' ? 'Module updated' : 'Module added', variant: 'success' });
+          toast({ title: 'Module added', variant: 'success' });
         }}
       />
 

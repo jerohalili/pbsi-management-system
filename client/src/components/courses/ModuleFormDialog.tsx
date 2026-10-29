@@ -11,7 +11,6 @@ import { Button } from '@/components/ui/button.tsx';
 import { Input } from '@/components/ui/input.tsx';
 import { Label } from '@/components/ui/label.tsx';
 import { Textarea } from '@/components/ui/textarea.tsx';
-import { ModuleContentManager } from '@/components/courses/ModuleContentManager.tsx';
 import api from '@/lib/api.ts';
 import { getErrorMessage } from '@/lib/errors.ts';
 
@@ -27,21 +26,17 @@ export interface ModuleFormValues {
 interface ModuleFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  mode: 'create' | 'edit';
   courseId: string;
   /** Suggested position for a new module. */
   nextOrderIndex: number;
-  module?: ModuleFormValues | null;
   onSaved: () => void;
 }
 
 export function ModuleFormDialog({
   open,
   onOpenChange,
-  mode,
   courseId,
   nextOrderIndex,
-  module,
   onSaved,
 }: ModuleFormDialogProps) {
   const [title, setTitle] = useState('');
@@ -54,16 +49,15 @@ export function ModuleFormDialog({
 
   useEffect(() => {
     if (!open) return;
-    const editing = mode === 'edit' && module;
-    setTitle(editing ? module.title : '');
-    setDescription(editing ? (module.rich_description ?? '') : '');
-    setVideoUrl(editing ? (module.video_url ?? '') : '');
-    setAttachmentUrl(editing ? (module.attachment_url ?? '') : '');
-    setOrderIndex(String(editing ? module.order_index : nextOrderIndex));
+    setTitle('');
+    setDescription('');
+    setVideoUrl('');
+    setAttachmentUrl('');
+    setOrderIndex(String(nextOrderIndex));
     setBusy(false);
     setError('');
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, mode, module]);
+  }, [open]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -77,11 +71,7 @@ export function ModuleFormDialog({
       order_index: Number(orderIndex),
     };
     try {
-      if (mode === 'create' || !module) {
-        await api.post('/modules', { ...payload, course_id: courseId });
-      } else {
-        await api.patch(`/modules/${module.id}`, payload);
-      }
+      await api.post('/modules', { ...payload, course_id: courseId });
       onSaved();
       onOpenChange(false);
     } catch (err) {
@@ -93,12 +83,12 @@ export function ModuleFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={(next) => !busy && onOpenChange(next)}>
-      <DialogContent className="max-h-[90vh] w-full max-w-4xl overflow-y-auto">
+      <DialogContent className="max-h-[90vh] w-full max-w-2xl overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{mode === 'create' ? 'Add module' : 'Edit module'}</DialogTitle>
+          <DialogTitle>Add module</DialogTitle>
           <DialogDescription>
-            A module is one unit of the course: lesson notes plus content blocks (text, video,
-            images, files, links) for students to study.
+            A module is one unit of the course. Add it here, then use its Edit button to attach content
+            blocks (text, video, images, files, links).
           </DialogDescription>
         </DialogHeader>
 
@@ -159,23 +149,12 @@ export function ModuleFormDialog({
           {error && <p className="text-sm text-destructive">{error}</p>}
         </form>
 
-        {/* Content blocks sit outside the form so Enter in their fields never submits the module. */}
-        <section className="border-t border-input pt-4">
-          {mode === 'edit' && module ? (
-            <ModuleContentManager moduleId={module.id} />
-          ) : (
-            <p className="rounded-xl border border-dashed border-input p-4 text-center text-sm text-muted-foreground">
-              Save the module first, then edit it to add text, videos, images, files and links.
-            </p>
-          )}
-        </section>
-
         <DialogFooter>
           <Button type="button" variant="destructive" onClick={() => onOpenChange(false)} disabled={busy}>
-            {mode === 'edit' ? 'Close' : 'Cancel'}
+            Cancel
           </Button>
           <Button type="submit" form="module-form" disabled={busy}>
-            {busy ? 'Saving…' : mode === 'create' ? 'Add module' : 'Save details'}
+            {busy ? 'Saving…' : 'Add module'}
           </Button>
         </DialogFooter>
       </DialogContent>
