@@ -87,7 +87,7 @@ export default function Home() {
             <div className="flex flex-col sm:flex-row justify-center items-center gap-5">
               <Button
                 onClick={() => navigate('/login')}
-                className="w-full sm:w-auto bg-primary text-white px-14 py-6 rounded-2xl font-bold text-xl transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-primary/40 active:scale-95"
+                className="w-full sm:w-auto !h-auto !bg-primary !text-primary-foreground !px-12 !py-4 rounded-2xl font-bold text-xl transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-primary/40 active:scale-95"
               >
                 Sign in
               </Button>

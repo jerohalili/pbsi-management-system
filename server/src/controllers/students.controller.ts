@@ -12,11 +12,16 @@ export async function listStudents(_req: Request, res: Response): Promise<void> 
   const searchParam = search ?? '';
   const subjectParam = subject ?? '';
 
+  // Admins can delete any student; a teacher only the students they added themselves.
+  const isAdmin = _req.user?.role === 'admin';
+  const actorId = _req.user?.id ?? null;
+
   const students = await sql`
     SELECT s.id, s.student_id, s.enrollment_date,
            (SELECT ROUND(AVG(g.score)::numeric, 2)::float8 FROM grades g WHERE g.student_id = s.id) AS average_grade,
            s.subjects_assigned,
            u.id as user_id, u.email, u.is_active,
+           COALESCE(${isAdmin}::boolean OR u.created_by = ${actorId}::uuid, FALSE) AS can_delete,
            p.first_name, p.last_name, p.phone, p.date_of_birth,
            p.gender, p.address, p.avatar_url
     FROM students s

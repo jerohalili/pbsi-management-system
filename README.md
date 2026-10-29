@@ -12,12 +12,12 @@ There are three roles. Accounts are created by staff; public sign-up is disabled
 | Role | What they can do |
 |------|------------------|
 | **admin** | Everything: manage all users, courses, grades, timetable and audit logs; export students to CSV |
-| **teacher** | Manage their own courses, modules, assignments, quizzes and timetable entries; grade submissions; view and adjust grades for the courses they teach; create student accounts |
+| **teacher** | Manage their own courses, modules, assignments, quizzes and timetable entries; grade submissions; view and adjust grades for the courses they teach; create student accounts and delete the students they added (only while the student has no records) |
 | **student** | View their own courses, grades and attendance; submit assignments; take published quizzes; join discussions |
 
 ## Features
 
-- **Users and RBAC**: `verifyToken` + `restrictTo(...roles)` middleware, plus ownership checks (a teacher only manages the courses they teach, a student only sees their own records). Admins can create, edit, deactivate/reactivate, reset passwords for and delete users.
+- **Users and RBAC**: `verifyToken` + `restrictTo(...roles)` middleware, plus ownership checks (a teacher only manages the courses they teach, a student only sees their own records). Admins can create, edit, deactivate/reactivate, reset passwords for and delete users. Deleting an account: an admin can delete any account (except their own and the last active admin), and a teacher only the students they added (`users.created_by`). A teacher cannot delete a student who has grades, attendance, submissions, quiz attempts or discussion posts; an admin can, after a warning that shows what will be deleted along with the account. Audit entries, courses and records someone else recorded or graded always block deletion (deactivate instead).
 - **Session revocation**: deactivating an account or resetting its password ends that person's sessions immediately (`users.tokens_valid_after`, checked on every request and on token refresh).
 - **Courses and modules**, with teacher assignment.
 - **Assignments and submissions**: students submit, teachers grade with feedback.
@@ -112,6 +112,7 @@ Run these by hand in the Neon SQL editor. All are safe to run more than once.
 | Script | When | Notes |
 |--------|------|-------|
 | `token-revocation.sql` | **Before** deploying the current server | Adds `users.tokens_valid_after`; the API reads it on every request |
+| `users-created-by.sql` | **Before** deploying the server that lets teachers delete their students | Adds `users.created_by` (who created each account); existing accounts stay `NULL`, so only admins can delete them |
 | `2d-backfill-grades.sql` | After deploying | One-time copy of old graded submissions and quiz attempts into `grades` |
 | `2d-optional-unique-indexes.sql` | After the backfill | Optional. Check for duplicates first; adds unique indexes on `grades` and `quiz_attempts` |
 | `drop-students-cumulative-gpa.sql` | Eventually, once the latest code has been running fine | Drops the unused `students.cumulative_gpa` column |

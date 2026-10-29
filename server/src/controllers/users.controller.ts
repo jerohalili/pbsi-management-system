@@ -46,11 +46,12 @@ interface TargetUser {
   email: string;
   role: UserRole;
   is_active: boolean;
+  created_by: string | null;
 }
 
 async function findTarget(id: string): Promise<TargetUser> {
   const [target] = await sql`
-    SELECT id, email, role::text AS role, is_active FROM users WHERE id = ${id}
+    SELECT id, email, role::text AS role, is_active, created_by FROM users WHERE id = ${id}
   `;
   if (!target) throw httpError(404, 'User not found');
   return target as TargetUser;
@@ -212,8 +213,8 @@ export async function createUser(req: Request, res: Response): Promise<void> {
 
   const statements = [
     sql`
-      INSERT INTO users (id, email, password_hash, role)
-      VALUES (${id}, ${input.email}, ${passwordHash}, ${input.role})
+      INSERT INTO users (id, email, password_hash, role, created_by)
+      VALUES (${id}, ${input.email}, ${passwordHash}, ${input.role}, ${actor.id})
     `,
     sql`
       INSERT INTO profiles (user_id, first_name, last_name, phone, date_of_birth, address)
@@ -369,57 +370,152 @@ export async function resetPassword(req: Request, res: Response): Promise<void> 
   res.json({ message: 'Password updated' });
 }
 
+// ---------------------------------------------------------------------------
+// Permanent deletion
+// ---------------------------------------------------------------------------
+
+interface RecordCount {
+  key: string;
+  label: string;
+  count: number;
+}
+
+/** An account's own history. An admin may delete it together with the account. */
+const OWN_RECORD_LABELS: Record<string, string> = {
+  grades: 'grades',
+  attendance: 'attendance records',
+  submissions: 'assignment submissions',
+  quiz_attempts: 'quiz attempts',
+  discussion_posts: 'discussion posts',
+};
+
+/** Records other people's data depends on. Nobody can delete the account while these exist. */
+const PROTECTED_RECORD_LABELS: Record<string, string> = {
+  audit_entries: 'audit log entries',
+  marked_attendance: 'attendance they recorded',
+  graded_submissions: 'submissions they graded',
+  courses: 'courses',
+  shared_threads: 'discussion threads other people replied to',
+};
+
+function toRecordCounts(row: Record<string, unknown>, labels: Record<string, string>): RecordCount[] {
+  return Object.entries(labels)
+    .map(([key, label]) => ({ key, label, count: Number(row[key] ?? 0) }))
+    .filter((record) => record.count > 0);
+}
+
+function describeRecords(records: RecordCount[]): string {
+  return records.map((record) => `${record.count} ${record.label}`).join(', ');
+}
+
+async function buildDeletePlan(id: string): Promise<{ own: RecordCount[]; blocked: RecordCount[] }> {
+  const [row] = await sql`
+    SELECT
+      (SELECT COUNT(*) FROM grades WHERE student_id IN (SELECT id FROM students WHERE user_id = ${id}))::int AS grades,
+      (SELECT COUNT(*) FROM attendance WHERE student_id IN (SELECT id FROM students WHERE user_id = ${id}))::int AS attendance,
+      (SELECT COUNT(*) FROM submissions WHERE student_id IN (SELECT id FROM students WHERE user_id = ${id}))::int AS submissions,
+      (SELECT COUNT(*) FROM quiz_attempts WHERE student_id IN (SELECT id FROM students WHERE user_id = ${id}))::int AS quiz_attempts,
+      ((SELECT COUNT(*) FROM discussion_replies WHERE author_id = ${id})
+        + (SELECT COUNT(*) FROM discussion_threads WHERE author_id = ${id}))::int AS discussion_posts,
+      (SELECT COUNT(*) FROM audit_logs WHERE actor_id = ${id})::int AS audit_entries,
+      (SELECT COUNT(*) FROM attendance WHERE marked_by = ${id})::int AS marked_attendance,
+      (SELECT COUNT(*) FROM submissions WHERE graded_by = ${id})::int AS graded_submissions,
+      (SELECT COUNT(*) FROM courses WHERE teacher_id IN (SELECT id FROM teachers WHERE user_id = ${id}))::int AS courses,
+      (SELECT COUNT(*) FROM discussion_threads t
+        WHERE t.author_id = ${id}
+          AND EXISTS (SELECT 1 FROM discussion_replies r WHERE r.thread_id = t.id AND r.author_id <> ${id}))::int AS shared_threads
+  `;
+  const counts = (row ?? {}) as Record<string, unknown>;
+  return {
+    own: toRecordCounts(counts, OWN_RECORD_LABELS),
+    blocked: toRecordCounts(counts, PROTECTED_RECORD_LABELS),
+  };
+}
+
 /**
- * Permanent deletion (admin only). To protect academic history it is refused
- * whenever the account has records attached; deactivating is the way to retire
- * such an account. Intended for accounts created by mistake.
+ * Who may delete whom. Admins: anyone (except themselves and the last active admin).
+ * Teachers: only the student accounts they created themselves.
  */
-export async function deleteUser(req: Request, res: Response): Promise<void> {
+async function assertCanDelete(actor: AuthUser, target: TargetUser): Promise<void> {
+  assertCanManageRole(actor, target.role);
+  if (actor.id === target.id) throw httpError(403, 'You cannot delete your own account');
+  if (actor.role === 'teacher' && target.created_by !== actor.id) {
+    throw httpError(403, 'You can only delete students you added');
+  }
+  if (target.role === 'admin') await assertAnotherActiveAdminExists(target.id);
+}
+
+/**
+ * Tells the client what deleting this account would involve, so the confirmation can show
+ * real numbers. Applies the same permission rules as the delete itself.
+ */
+export async function previewDeleteUser(req: Request, res: Response): Promise<void> {
   const actor = requireActor(req);
   const id = parseId(req.params.id);
 
   const target = await findTarget(id);
-  assertCanManageRole(actor, target.role);
+  await assertCanDelete(actor, target);
 
-  if (actor.id === id) throw httpError(403, 'You cannot delete your own account');
-  if (target.role === 'admin') await assertAnotherActiveAdminExists(id);
+  const plan = await buildDeletePlan(id);
+  res.json({
+    can_delete: plan.blocked.length === 0 && (plan.own.length === 0 || actor.role === 'admin'),
+    needs_cascade: plan.own.length > 0,
+    own_records: plan.own,
+    blocking_records: plan.blocked,
+  });
+}
 
-  const [usage] = await sql`
-    SELECT
-      EXISTS (SELECT 1 FROM audit_logs WHERE actor_id = ${id}) AS audit_entries,
-      EXISTS (SELECT 1 FROM attendance WHERE marked_by = ${id}) AS marked_attendance,
-      EXISTS (SELECT 1 FROM submissions WHERE graded_by = ${id}) AS graded_submissions,
-      EXISTS (SELECT 1 FROM grades WHERE student_id IN (SELECT id FROM students WHERE user_id = ${id})) AS grades,
-      EXISTS (SELECT 1 FROM attendance WHERE student_id IN (SELECT id FROM students WHERE user_id = ${id})) AS attendance,
-      EXISTS (SELECT 1 FROM submissions WHERE student_id IN (SELECT id FROM students WHERE user_id = ${id})) AS submissions,
-      EXISTS (SELECT 1 FROM quiz_attempts WHERE student_id IN (SELECT id FROM students WHERE user_id = ${id})) AS quiz_attempts,
-      EXISTS (SELECT 1 FROM courses WHERE teacher_id IN (SELECT id FROM teachers WHERE user_id = ${id})) AS courses
-  `;
+/**
+ * Permanent deletion. Admins can delete any account; teachers only the students they added.
+ * An account whose own history (grades, attendance, submissions, quiz attempts, discussion
+ * posts) exists is refused for teachers; an admin can delete it together with that history by
+ * confirming with `?cascade=true`. Records that other people's data depends on (audit entries,
+ * courses, attendance or grades someone recorded) always block deletion: deactivate instead.
+ */
+export async function deleteUser(req: Request, res: Response): Promise<void> {
+  const actor = requireActor(req);
+  const id = parseId(req.params.id);
+  const cascade = req.query.cascade === 'true';
 
-  const labels: Record<string, string> = {
-    audit_entries: 'audit log entries',
-    marked_attendance: 'attendance they recorded',
-    graded_submissions: 'submissions they graded',
-    grades: 'grades',
-    attendance: 'attendance records',
-    submissions: 'assignment submissions',
-    quiz_attempts: 'quiz attempts',
-    courses: 'courses',
-  };
-  const attached = Object.keys(labels).filter((key) => usage?.[key] === true);
-  if (attached.length > 0) {
+  const target = await findTarget(id);
+  await assertCanDelete(actor, target);
+
+  const plan = await buildDeletePlan(id);
+  if (plan.blocked.length > 0) {
     throw httpError(
       409,
-      `This account can't be permanently deleted because it has ${attached
-        .map((key) => labels[key])
-        .join(', ')}. Deactivate it instead to keep those records.`,
+      `This account can't be permanently deleted because it has ${describeRecords(plan.blocked)}. Deactivate it instead to keep those records.`,
     );
+  }
+  if (plan.own.length > 0) {
+    if (actor.role !== 'admin') {
+      throw httpError(
+        409,
+        `This account can't be deleted because it has ${describeRecords(plan.own)}. Deactivate it instead, or ask an administrator to delete it.`,
+      );
+    }
+    if (!cascade) {
+      throw httpError(
+        409,
+        `This account has ${describeRecords(plan.own)}. Confirm that these records should be deleted too, then try again.`,
+      );
+    }
   }
 
   const before = await fetchUserDetail(id);
 
   try {
+    // One transaction: the account and its own records go together, or nothing changes.
     await sql.transaction([
+      sql`DELETE FROM grades WHERE student_id IN (SELECT id FROM students WHERE user_id = ${id})`,
+      sql`DELETE FROM attendance WHERE student_id IN (SELECT id FROM students WHERE user_id = ${id})`,
+      sql`DELETE FROM submissions WHERE student_id IN (SELECT id FROM students WHERE user_id = ${id})`,
+      sql`DELETE FROM quiz_attempts WHERE student_id IN (SELECT id FROM students WHERE user_id = ${id})`,
+      // Other people's replies to this account's replies stay, as top-level replies.
+      sql`UPDATE discussion_replies SET parent_reply_id = NULL
+          WHERE parent_reply_id IN (SELECT id FROM discussion_replies WHERE author_id = ${id})`,
+      sql`DELETE FROM discussion_replies WHERE author_id = ${id}`,
+      sql`DELETE FROM discussion_threads WHERE author_id = ${id}`,
       sql`DELETE FROM notifications WHERE user_id = ${id}`,
       sql`DELETE FROM students WHERE user_id = ${id}`,
       sql`DELETE FROM teachers WHERE user_id = ${id}`,
@@ -438,7 +534,15 @@ export async function deleteUser(req: Request, res: Response): Promise<void> {
     'user.delete',
     id,
     before
-      ? { email: before.email, role: before.role, first_name: before.first_name, last_name: before.last_name }
+      ? {
+          email: before.email,
+          role: before.role,
+          first_name: before.first_name,
+          last_name: before.last_name,
+          ...(plan.own.length > 0
+            ? { records_deleted: Object.fromEntries(plan.own.map((record) => [record.key, record.count])) }
+            : {}),
+        }
       : null,
     null,
   );

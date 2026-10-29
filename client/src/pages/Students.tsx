@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useQueryClient } from 'react-query';
-import { KeyRound, Pencil, UserCheck, UserPlus, UserX } from 'lucide-react';
+import { KeyRound, Pencil, Trash2, UserCheck, UserPlus, UserX } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useGet } from '@/hooks/useApi.ts';
 import { formatAverage } from '@/lib/utils.ts';
@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/badge.tsx';
 import { UserFormDialog, ManagedUser } from '@/components/users/UserFormDialog.tsx';
 import { ResetPasswordDialog } from '@/components/users/ResetPasswordDialog.tsx';
 import { ConfirmDialog } from '@/components/users/ConfirmDialog.tsx';
+import { DeleteUserDialog } from '@/components/users/DeleteUserDialog.tsx';
 
 // Average grade (percent) at or above which the badge turns green.
 const PASSING_AVERAGE = 75;
@@ -28,6 +29,7 @@ interface Student {
   date_of_birth: string | null;
   address: string | null;
   is_active: boolean;
+  can_delete: boolean;
   average_grade: number | string | null;
   subjects_assigned: string[] | null;
 }
@@ -41,6 +43,7 @@ export default function StudentsPage() {
   const [form, setForm] = useState<{ mode: 'create' | 'edit'; user?: ManagedUser } | null>(null);
   const [resetTarget, setResetTarget] = useState<Student | null>(null);
   const [toggleTarget, setToggleTarget] = useState<Student | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Student | null>(null);
 
   useEffect(() => {
     const t = setTimeout(() => setSearch(searchInput.trim()), 300);
@@ -115,7 +118,7 @@ export default function StudentsPage() {
                 <TableHead>Email</TableHead>
                 <TableHead className="w-28">Average grade</TableHead>
                 <TableHead className="w-32">Subjects</TableHead>
-                <TableHead className="w-52 text-right">Actions</TableHead>
+                <TableHead className="w-60 text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -183,6 +186,18 @@ export default function StudentsPage() {
                       >
                         {s.is_active ? <UserX className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
                       </Button>
+                      {s.can_delete && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label={`Delete ${name}`}
+                          title="Delete permanently"
+                          className="text-destructive hover:text-destructive"
+                          onClick={() => setDeleteTarget(s)}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      )}
                     </TableCell>
                   </TableRow>
                 );
@@ -230,6 +245,28 @@ export default function StudentsPage() {
           onConfirm={toggleActive}
         />
       )}
+
+      <DeleteUserDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+        target={
+          deleteTarget && {
+            id: deleteTarget.user_id,
+            name: `${deleteTarget.first_name} ${deleteTarget.last_name}`,
+            email: deleteTarget.email,
+          }
+        }
+        onDeleted={() => {
+          if (deleteTarget) {
+            toast({
+              title: 'Student deleted',
+              description: `${deleteTarget.first_name} ${deleteTarget.last_name}`,
+              variant: 'success',
+            });
+          }
+          refreshEverywhere();
+        }}
+      />
     </div>
   );
 }

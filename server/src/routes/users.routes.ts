@@ -8,6 +8,7 @@ import {
   reactivateUser,
   resetPassword,
   deleteUser,
+  previewDeleteUser,
 } from '../controllers/users.controller.js';
 import { verifyToken } from '../middleware/verifyToken.js';
 import { restrictTo } from '../middleware/restrictTo.js';
@@ -55,6 +56,13 @@ router.post(
   validate(resetPasswordSchema),
   asyncHandler(resetPassword),
 );
-router.delete('/:id', restrictTo('admin'), asyncHandler(deleteUser));
+// Admins can delete any account; a teacher can delete only the students they added
+// (enforced in the controller via users.created_by).
+router.get(
+  '/:id/delete-preview',
+  restrictTo('admin', 'teacher'),
+  asyncHandler(previewDeleteUser),
+);
+router.delete('/:id', restrictTo('admin', 'teacher'), asyncHandler(deleteUser));
 
 export default router;

@@ -12,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { UserFormDialog, ManagedUser, ManagedRole } from '@/components/users/UserFormDialog.tsx';
 import { ResetPasswordDialog } from '@/components/users/ResetPasswordDialog.tsx';
 import { ConfirmDialog } from '@/components/users/ConfirmDialog.tsx';
+import { DeleteUserDialog } from '@/components/users/DeleteUserDialog.tsx';
 
 interface UserRow {
   id: string;
@@ -25,7 +26,7 @@ interface UserRow {
   employee_id: string | null;
 }
 
-type ConfirmState = { kind: 'deactivate' | 'reactivate' | 'delete'; user: UserRow } | null;
+type ConfirmState = { kind: 'deactivate' | 'reactivate'; user: UserRow } | null;
 
 const ROLE_BADGE: Record<ManagedRole, 'default' | 'secondary' | 'outline'> = {
   admin: 'default',
@@ -53,6 +54,7 @@ export default function UsersPage() {
   const [form, setForm] = useState<{ mode: 'create' | 'edit'; user?: ManagedUser } | null>(null);
   const [resetTarget, setResetTarget] = useState<UserRow | null>(null);
   const [confirm, setConfirm] = useState<ConfirmState>(null);
+  const [deleteTarget, setDeleteTarget] = useState<UserRow | null>(null);
 
   useEffect(() => {
     const t = setTimeout(() => setSearch(searchInput.trim()), 300);
@@ -91,17 +93,12 @@ export default function UsersPage() {
   const runConfirmed = async () => {
     if (!confirm) return;
     const { kind, user } = confirm;
-    if (kind === 'delete') {
-      await api.delete(`/users/${user.id}`);
-      toast({ title: 'Account deleted', description: fullName(user), variant: 'success' });
-    } else {
-      await api.patch(`/users/${user.id}/${kind}`);
-      toast({
-        title: kind === 'deactivate' ? 'Account deactivated' : 'Account reactivated',
-        description: fullName(user),
-        variant: 'success',
-      });
-    }
+    await api.patch(`/users/${user.id}/${kind}`);
+    toast({
+      title: kind === 'deactivate' ? 'Account deactivated' : 'Account reactivated',
+      description: fullName(user),
+      variant: 'success',
+    });
     refreshEverywhere();
   };
 
@@ -117,12 +114,6 @@ export default function UsersPage() {
       description: `${fullName(confirm.user)} will be able to sign in again.`,
       label: 'Reactivate',
       destructive: false,
-    },
-    delete: {
-      title: 'Permanently delete account?',
-      description: `${fullName(confirm.user)} (${confirm.user.email}) will be removed for good. This cannot be undone. Accounts that already have grades, attendance, courses or other records can’t be deleted — deactivate those instead.`,
-      label: 'Delete permanently',
-      destructive: true,
     },
   }[confirm.kind];
 
@@ -257,7 +248,7 @@ export default function UsersPage() {
                         title={isSelf ? 'You can’t delete yourself' : 'Delete permanently'}
                         disabled={isSelf}
                         className="text-destructive hover:text-destructive"
-                        onClick={() => setConfirm({ kind: 'delete', user: u })}
+                        onClick={() => setDeleteTarget(u)}
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>
@@ -299,6 +290,18 @@ export default function UsersPage() {
           onConfirm={runConfirmed}
         />
       )}
+
+      <DeleteUserDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+        target={deleteTarget && { id: deleteTarget.id, name: fullName(deleteTarget), email: deleteTarget.email }}
+        onDeleted={() => {
+          if (deleteTarget) {
+            toast({ title: 'Account deleted', description: fullName(deleteTarget), variant: 'success' });
+          }
+          refreshEverywhere();
+        }}
+      />
     </div>
   );
 }
