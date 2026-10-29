@@ -234,3 +234,23 @@ export type NotificationInput = z.infer<typeof notificationSchema>;
 export type QuizInput = z.infer<typeof quizSchema>;
 export type QuizQuestionInput = z.infer<typeof quizQuestionSchema>;
 export type QuizAttemptInput = z.infer<typeof quizAttemptSchema>;
+
+// ---- Module content blocks ---------------------------------------------------
+
+export const moduleContentSchema = z.object({
+  module_id: z.string().uuid('Invalid module ID'),
+  type: z.enum(['text', 'video', 'image', 'file', 'link']),
+  title: z.string().trim().min(1, 'Title is required').max(200).nullish(),
+  content: z.string().nullish(), // rich text / HTML for text blocks
+  url: z.string().trim().max(2000).nullish(), // Cloudinary URL or external link
+  cloudinary_public_id: z.string().nullish(),
+  resource_type: z.enum(['image', 'video', 'raw']).nullish(), // for Cloudinary cleanup
+  order_index: z.coerce.number().int().nonnegative().default(0),
+});
+
+export const updateModuleContentSchema = moduleContentSchema
+  .omit({ module_id: true })
+  .partial();
+
+export type ModuleContentInput = z.infer<typeof moduleContentSchema>;
+export type UpdateModuleContentInput = z.infer<typeof updateModuleContentSchema>;

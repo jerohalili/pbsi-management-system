@@ -5,12 +5,21 @@ import {
   createModule,
   updateModule,
   deleteModule,
+  listModuleContents,
+  createModuleContent,
+  updateModuleContent,
+  deleteModuleContent,
+  reorderModuleContents,
 } from '../controllers/modules.controller.js';
 import { verifyToken } from '../middleware/verifyToken.js';
 import { restrictTo } from '../middleware/restrictTo.js';
 import { validate } from '../middleware/validate.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
-import { moduleSchema } from '../utils/validation.js';
+import {
+  moduleContentSchema,
+  moduleSchema,
+  updateModuleContentSchema,
+} from '../utils/validation.js';
 
 const router = Router();
 
@@ -31,5 +40,27 @@ router.patch(
   asyncHandler(updateModule),
 );
 router.delete('/:id', restrictTo('admin', 'teacher'), asyncHandler(deleteModule));
+
+// ---- Module content blocks ------------------------------------------------
+
+router.get('/:module_id/contents', asyncHandler(listModuleContents));
+router.post(
+  '/:module_id/contents',
+  restrictTo('admin', 'teacher'),
+  validate(moduleContentSchema),
+  asyncHandler(createModuleContent),
+);
+router.patch(
+  '/contents/reorder',
+  restrictTo('admin', 'teacher'),
+  asyncHandler(reorderModuleContents),
+);
+router.patch(
+  '/contents/:id',
+  restrictTo('admin', 'teacher'),
+  validate(updateModuleContentSchema),
+  asyncHandler(updateModuleContent),
+);
+router.delete('/contents/:id', restrictTo('admin', 'teacher'), asyncHandler(deleteModuleContent));
 
 export default router;

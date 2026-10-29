@@ -35,7 +35,7 @@ const ROLE_BADGE: Record<ManagedRole, 'default' | 'secondary' | 'outline'> = {
 };
 
 const selectClass =
-  'flex h-10 items-center rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring';
+  'flex h-10 items-center rounded-md border border-input bg-card px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring';
 
 function fullName(u: { first_name: string | null; last_name: string | null; email: string }) {
   return `${u.first_name ?? ''} ${u.last_name ?? ''}`.trim() || u.email;
@@ -131,7 +131,7 @@ export default function UsersPage() {
 
       <div className="flex flex-col sm:flex-row gap-2">
         <Input
-          className="sm:max-w-xs"
+          className="bg-card sm:max-w-xs"
           placeholder="Search name, email or ID…"
           value={searchInput}
           onChange={(e) => setSearchInput(e.target.value)}

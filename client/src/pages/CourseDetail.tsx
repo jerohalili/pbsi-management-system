@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useQueryClient } from 'react-query';
 import { ArrowLeft, ClipboardList, ExternalLink, FileText, HelpCircle, Pencil, Plus, Trash2, Video } from 'lucide-react';
@@ -12,9 +12,9 @@ import { Card } from '@/components/ui/card.tsx';
 import { Skeleton } from '@/components/ui/skeleton.tsx';
 import { CourseFormDialog, CourseFormValues } from '@/components/courses/CourseFormDialog.tsx';
 import { ModuleFormDialog, ModuleFormValues } from '@/components/courses/ModuleFormDialog.tsx';
+import { ModuleContentViewer } from '@/components/courses/ModuleContentViewer.tsx';
 import { ConfirmDialog } from '@/components/users/ConfirmDialog.tsx';
 import { AssignmentFormDialog } from '@/components/assignments/AssignmentFormDialog.tsx';
-import { AssignmentStatusBadge } from '@/components/assignments/AssignmentStatusBadge.tsx';
 import type { AssignmentItem } from '@/components/assignments/types.ts';
 import { QuizFormDialog } from '@/components/quizzes/QuizFormDialog.tsx';
 import { formatTimeLimit, type QuizItem } from '@/components/quizzes/types.ts';
@@ -28,6 +28,19 @@ interface Course extends CourseFormValues {
 
 interface Module extends ModuleFormValues {
   course_id: string;
+}
+
+interface ModuleContent {
+  id: string;
+  module_id: string;
+  type: 'text' | 'video' | 'image' | 'file' | 'link';
+  title: string | null;
+  content: string | null;
+  url: string | null;
+  cloudinary_public_id: string | null;
+  resource_type: string | null;
+  order_index: number;
+  created_at: string;
 }
 
 // Module links come from users, so only ever render real web links.
@@ -45,6 +58,7 @@ export default function CourseDetailPage() {
 
   const [editingCourse, setEditingCourse] = useState(false);
   const [assignmentModuleId, setAssignmentModuleId] = useState<string | null>(null);
+  const [creatingAssignment, setCreatingAssignment] = useState(false);
   const [creatingQuiz, setCreatingQuiz] = useState(false);
   const [moduleDialog, setModuleDialog] = useState<ModuleDialog>(null);
   const [deleteTarget, setDeleteTarget] = useState<
@@ -73,6 +87,7 @@ export default function CourseDetailPage() {
     },
     {},
   );
+  const allAssignments = Object.values(assignmentsByModule).flat();
 
   const { data: quizData } = useGet<{ quizzes: QuizItem[] }>(
     ['quizzes', 'course', id ?? ''],
@@ -86,11 +101,39 @@ export default function CourseDetailPage() {
   const modules = data?.modules ?? [];
   const canEdit = !!course && (isAdmin || (user?.role === 'teacher' && course.is_mine));
 
-  const refresh = () => {
+  // Fetch contents for every module so students can read them and teachers can manage them.
+  const [allContents, setAllContents] = useState<Record<string, ModuleContent[]>>({});
+
+  const fetchModuleContents = async () => {
+    if (!modules.length) return;
+    try {
+      const results = await Promise.all(
+        modules.map((m) =>
+          api.get<{ contents: ModuleContent[] }>(`/modules/${m.id}/contents`),
+        ),
+      );
+      const next: Record<string, ModuleContent[]> = {};
+      modules.forEach((m, i) => {
+        next[m.id] = results[i]?.data?.contents ?? [];
+      });
+      setAllContents(next);
+    } catch {
+      // Contents are optional; don't block the page if this fails.
+    }
+  };
+
+  // Fetch contents whenever the module list changes.
+  useEffect(() => {
+    fetchModuleContents();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modules.length, id]);
+
+  const refresh = async () => {
     queryClient.invalidateQueries('course');
     queryClient.invalidateQueries('courses');
     queryClient.invalidateQueries('assignments');
     queryClient.invalidateQueries('quizzes');
+    await fetchModuleContents();
   };
 
   const deleteCourse = async () => {
@@ -234,43 +277,9 @@ export default function CourseDetailPage() {
                         )}
                       </div>
                     )}
-                    {((assignmentsByModule[m.id] ?? []).length > 0 || canEdit) && (
-                      <div className="pt-2 space-y-2">
-                        {(assignmentsByModule[m.id] ?? []).length > 0 && (
-                          <ul className="space-y-1">
-                            {(assignmentsByModule[m.id] ?? []).map((a) => (
-                              <li key={a.id} className="flex items-center gap-2 flex-wrap text-sm">
-                                <ClipboardList className="w-4 h-4 text-muted-foreground shrink-0" />
-                                <Link to={`/assignments/${a.id}`} className="font-medium hover:underline">
-                                  {a.title}
-                                </Link>
-                                <span className="text-muted-foreground">due {formatDateTime(a.due_date)}</span>
-                                <AssignmentStatusBadge status={a.status} isLate={a.is_late} />
-                                {canEdit && (
-                                  <Button
-                                    variant="destructive"
-                                    size="icon"
-                                    aria-label={`Delete assignment ${a.title}`}
-                                    title="Delete"
-                                    onClick={(e: React.MouseEvent) => {
-                                      e.stopPropagation();
-                                      setDeleteTarget({ kind: 'assignment', assignment: a });
-                                    }}
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </Button>
-                                )}
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                        {canEdit && (
-                          <Button variant="outline" size="sm" onClick={() => setAssignmentModuleId(m.id)}>
-                            <Plus className="w-4 h-4 mr-1" /> Add assignment
-                          </Button>
-                        )}
-                      </div>
-                    )}
+
+                    {/* Module content blocks */}
+                    <ModuleContentViewer contents={allContents[m.id] ?? []} />
                   </div>
                   {(canEdit || isAdmin) && (
                     <div className="flex shrink-0 gap-2">
@@ -360,6 +369,69 @@ export default function CourseDetailPage() {
         )}
       </section>
 
+      <section className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-bold">Assignments</h2>
+          {canEdit && (
+            <Button onClick={() => {
+              setCreatingAssignment(true);
+              setAssignmentModuleId(null);
+            }}>
+              <Plus className="w-4 h-4 mr-2" /> New assignment
+            </Button>
+          )}
+        </div>
+
+        {/* Flatten all assignments across modules */}
+        {allAssignments.length === 0 ? (
+          <Card className="p-8 text-center text-muted-foreground">
+            <p>No assignments yet.</p>
+            {canEdit && <p className="text-sm mt-1">Create assignments to give students work to hand in.</p>}
+          </Card>
+        ) : (
+          <div className="space-y-3">
+            {allAssignments.map((a) => (
+              <Card key={a.id} className="p-4">
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <div className="space-y-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <ClipboardList className="w-4 h-4 text-muted-foreground shrink-0" />
+                      <Link to={`/assignments/${a.id}`} className="font-medium hover:underline truncate">
+                        {a.title}
+                      </Link>
+                      <span className="text-xs text-muted-foreground truncate">Module: {a.module_title}</span>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      Due {formatDateTime(a.due_date)} · Max {a.max_score}
+                      {a.grade !== null && ` · Your grade: ${a.grade}`}
+                    </p>
+                    {a.status && (
+                      <span className="text-xs text-muted-foreground">{a.status}</span>
+                    )}
+                  </div>
+                  <div className="flex shrink-0 gap-2">
+                    {canEdit && (
+                      <Button
+                        variant="destructive"
+                        size="icon"
+                        aria-label={`Delete assignment ${a.title}`}
+                        title="Delete"
+                        onClick={(e: React.MouseEvent) => {
+                          e.stopPropagation();
+                          setDeleteTarget({ kind: 'assignment', assignment: a });
+                        }}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
+      </section>
+
       <CourseFormDialog
         open={editingCourse}
         onOpenChange={setEditingCourse}
@@ -385,10 +457,16 @@ export default function CourseDetailPage() {
       />
 
       <AssignmentFormDialog
-        open={assignmentModuleId !== null}
-        onOpenChange={(open) => !open && setAssignmentModuleId(null)}
+        open={assignmentModuleId !== null || creatingAssignment}
+        onOpenChange={(open) => {
+          if (!open) {
+            setAssignmentModuleId(null);
+            setCreatingAssignment(false);
+          }
+        }}
         mode="create"
         moduleId={assignmentModuleId ?? undefined}
+        modules={modules.map((m) => ({ id: m.id, title: m.title }))}
         onSaved={() => {
           refresh();
           toast({ title: 'Assignment created', variant: 'success' });

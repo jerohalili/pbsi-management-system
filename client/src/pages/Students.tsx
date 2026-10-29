@@ -87,7 +87,7 @@ export default function StudentsPage() {
           <Input
             type="text"
             placeholder="Search by name or student ID..."
-            className="w-64"
+            className="w-64 bg-card"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
           />

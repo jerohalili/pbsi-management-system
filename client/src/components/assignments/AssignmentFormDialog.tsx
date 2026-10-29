@@ -10,6 +10,7 @@ import {
 import { Button } from '@/components/ui/button.tsx';
 import { Input } from '@/components/ui/input.tsx';
 import { Label } from '@/components/ui/label.tsx';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select.tsx';
 import { Textarea } from '@/components/ui/textarea.tsx';
 import api from '@/lib/api.ts';
 import { getErrorMessage } from '@/lib/errors.ts';
@@ -22,6 +23,8 @@ interface AssignmentFormDialogProps {
   mode: 'create' | 'edit';
   /** Required when creating: the module the assignment belongs to. */
   moduleId?: string;
+  /** Available modules for selection when creating from the assignments section. */
+  modules?: { id: string; title: string }[];
   assignment?: AssignmentItem | null;
   onSaved: (assignment: { id: string }) => void;
 }
@@ -31,6 +34,7 @@ export function AssignmentFormDialog({
   onOpenChange,
   mode,
   moduleId,
+  modules,
   assignment,
   onSaved,
 }: AssignmentFormDialogProps) {
@@ -39,6 +43,7 @@ export function AssignmentFormDialog({
   const [dueDate, setDueDate] = useState('');
   const [maxScore, setMaxScore] = useState('100');
   const [attachmentUrl, setAttachmentUrl] = useState('');
+  const [selectedModuleId, setSelectedModuleId] = useState<string | undefined>(moduleId);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -50,10 +55,11 @@ export function AssignmentFormDialog({
     setDueDate(editing ? toLocalInputValue(assignment.due_date) : '');
     setMaxScore(editing ? String(assignment.max_score) : '100');
     setAttachmentUrl(editing ? (assignment.attachment_url ?? '') : '');
+    setSelectedModuleId(editing ? undefined : moduleId);
     setBusy(false);
     setError('');
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, mode, assignment]);
+  }, [open, mode, assignment, moduleId]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -69,7 +75,7 @@ export function AssignmentFormDialog({
     try {
       const { data } =
         mode === 'create' || !assignment
-          ? await api.post<{ assignment: { id: string } }>('/assignments', { ...payload, module_id: moduleId })
+          ? await api.post<{ assignment: { id: string } }>('/assignments', { ...payload, module_id: selectedModuleId })
           : await api.patch<{ assignment: { id: string } }>(`/assignments/${assignment.id}`, payload);
       onSaved(data.assignment);
       onOpenChange(false);
@@ -91,6 +97,27 @@ export function AssignmentFormDialog({
         </DialogHeader>
 
         <form onSubmit={submit} className="space-y-4">
+          {mode === 'create' && !moduleId && modules && modules.length > 0 && (
+            <div className="space-y-2">
+              <Label htmlFor="af-module">Module</Label>
+              <Select
+                value={selectedModuleId ?? ''}
+                onValueChange={(val) => setSelectedModuleId(val)}
+              >
+                <SelectTrigger id="af-module">
+                  <SelectValue placeholder="Select a module" />
+                </SelectTrigger>
+                <SelectContent>
+                  {modules.map((m) => (
+                    <SelectItem key={m.id} value={m.id}>
+                      {m.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           <div className="space-y-2">
             <Label htmlFor="af-title">Title</Label>
             <Input id="af-title" required value={title} onChange={(e) => setTitle(e.target.value)} />
