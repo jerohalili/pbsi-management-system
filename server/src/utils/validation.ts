@@ -171,11 +171,28 @@ export const gradeSchema = z.object({
   feedback: z.string().optional(),
 });
 
+export const attendanceStatusSchema = z.enum(['present', 'absent', 'late', 'excused']);
+
 export const attendanceSchema = z.object({
   student_id: z.string().uuid('Invalid student ID'),
   course_id: z.string().uuid('Invalid course ID'),
   date: z.string().date('Invalid date'),
-  status: z.enum(['present', 'absent', 'late', 'excused']),
+  status: attendanceStatusSchema,
+});
+
+/** One class session: every student's status for a course on a date, saved together. */
+export const bulkAttendanceSchema = z.object({
+  course_id: z.string().uuid('Invalid course ID'),
+  date: z.string().date('Invalid date'),
+  records: z
+    .array(
+      z.object({
+        student_id: z.string().uuid('Invalid student ID'),
+        status: attendanceStatusSchema,
+      }),
+    )
+    .min(1, 'Mark at least one student')
+    .max(500, 'Too many students in one request'),
 });
 
 export const timetableSchema = z.object({
@@ -229,6 +246,7 @@ export type QuestionInput = z.infer<typeof questionInputSchema>;
 export type CreateAssignmentInput = z.infer<typeof createAssignmentSchema>;
 export type GradeSubmissionInput = z.infer<typeof gradeSubmissionSchema>;
 export type AttendanceInput = z.infer<typeof attendanceSchema>;
+export type BulkAttendanceInput = z.infer<typeof bulkAttendanceSchema>;
 export type TimetableInput = z.infer<typeof timetableSchema>;
 export type NotificationInput = z.infer<typeof notificationSchema>;
 export type QuizInput = z.infer<typeof quizSchema>;
