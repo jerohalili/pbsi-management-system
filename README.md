@@ -115,6 +115,7 @@ Run these by hand in the Neon SQL editor. All are safe to run more than once.
 | `users-created-by.sql` | **Before** deploying the server that lets teachers delete their students | Adds `users.created_by` (who created each account); existing accounts stay `NULL`, so only admins can delete them |
 | `2d-backfill-grades.sql` | After deploying | One-time copy of old graded submissions and quiz attempts into `grades` |
 | `2d-optional-unique-indexes.sql` | After the backfill | Optional. Check for duplicates first; adds unique indexes on `grades` and `quiz_attempts` |
+| `timetable-constraints.sql` | After deploying the timetable update | Optional safety net. Check for duplicates first; adds time/day checks and unique indexes so a teacher, room or course cannot be double-booked even by two simultaneous saves |
 | `drop-students-cumulative-gpa.sql` | Eventually, once the latest code has been running fine | Drops the unused `students.cumulative_gpa` column |
 
 ## API Overview

@@ -195,15 +195,31 @@ export const bulkAttendanceSchema = z.object({
     .max(500, 'Too many students in one request'),
 });
 
-export const timetableSchema = z.object({
+const clockTime = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Use a time like 08:30');
+
+// Zero-padded HH:MM strings compare correctly as text, so a plain > is enough here.
+const endsAfterItStarts = (v: { start_time: string; end_time: string }): boolean =>
+  v.end_time > v.start_time;
+const END_AFTER_START = { message: 'End time must be after the start time', path: ['end_time'] };
+
+const timetableSlot = z.object({
   day_of_week: z.coerce.number().int().min(1).max(5),
-  period_number: z.coerce.number().int().positive(),
-  start_time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
-  end_time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
-  course_id: z.string().uuid('Invalid course ID'),
-  teacher_id: z.string().uuid('Invalid teacher ID'),
-  room: z.string().min(1, 'Room is required'),
+  period_number: z.coerce.number().int().min(1).max(12),
+  start_time: clockTime,
+  end_time: clockTime,
+  room: z.string().trim().min(1, 'Room is required').max(50),
 });
+
+// teacher_id is optional: it defaults to the course's teacher (only admins may pick another).
+export const timetableSchema = timetableSlot
+  .extend({
+    course_id: z.string().uuid('Invalid course ID'),
+    teacher_id: z.string().uuid('Invalid teacher ID').optional(),
+  })
+  .refine(endsAfterItStarts, END_AFTER_START);
+
+// Editing moves or re-rooms an entry; to change its course, delete it and add a new one.
+export const timetableUpdateSchema = timetableSlot.refine(endsAfterItStarts, END_AFTER_START);
 
 export const notificationSchema = z.object({
   user_id: z.string().uuid('Invalid user ID'),
@@ -248,6 +264,7 @@ export type GradeSubmissionInput = z.infer<typeof gradeSubmissionSchema>;
 export type AttendanceInput = z.infer<typeof attendanceSchema>;
 export type BulkAttendanceInput = z.infer<typeof bulkAttendanceSchema>;
 export type TimetableInput = z.infer<typeof timetableSchema>;
+export type TimetableUpdateInput = z.infer<typeof timetableUpdateSchema>;
 export type NotificationInput = z.infer<typeof notificationSchema>;
 export type QuizInput = z.infer<typeof quizSchema>;
 export type QuizQuestionInput = z.infer<typeof quizQuestionSchema>;

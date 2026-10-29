@@ -1,42 +1,85 @@
 import useAuth from '@/hooks/useAuth.ts';
-import { useEffect, useState } from 'react';
-import { Clock } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Pencil, Plus, Trash2 } from 'lucide-react';
 import api from '@/lib/api.ts';
+import { getErrorMessage } from '@/lib/errors.ts';
+import { cn } from '@/lib/utils.ts';
+import { Button } from '@/components/ui/button.tsx';
 import { useToast } from '@/components/ui/toast.tsx';
+import { ConfirmDialog } from '@/components/users/ConfirmDialog.tsx';
+import { TimetableFormDialog } from '@/components/timetable/TimetableFormDialog.tsx';
+import {
+  DAY_SHORT,
+  MIN_PERIODS,
+  type TimetableCourse,
+  type TimetableEntry,
+} from '@/components/timetable/types.ts';
 
-interface TimetableEntry {
-  id: string;
-  day_of_week: number;
-  period_number: number;
-  start_time: string;
-  end_time: string;
-  room: string;
-  course_code: string;
-  course_name: string;
-  teacher_first_name: string;
-  teacher_last_name: string;
-}
-
-const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+type View = 'mine' | 'all';
 
 export default function TimetablePage() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { user, isAuthenticated, isLoading } = useAuth();
   const { toast } = useToast();
   const [entries, setEntries] = useState<TimetableEntry[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [courses, setCourses] = useState<TimetableCourse[]>([]);
+  const [view, setView] = useState<View>('mine');
+
+  const [formOpen, setFormOpen] = useState(false);
+  const [formMode, setFormMode] = useState<'create' | 'edit'>('create');
+  const [editing, setEditing] = useState<TimetableEntry | null>(null);
+  const [cell, setCell] = useState<{ day?: number; period?: number }>({});
+  const [deleting, setDeleting] = useState<TimetableEntry | null>(null);
+
+  const isTeacher = user?.role === 'teacher';
+  const canEdit = user?.role === 'admin' || isTeacher;
+  const onlyMine = isTeacher && view === 'mine';
+
+  const loadTimetable = useCallback(async () => {
+    try {
+      const res = await api.get<{ timetable: TimetableEntry[] }>('/timetable', {
+        params: onlyMine ? { mine: 'true' } : undefined,
+      });
+      setEntries(res.data.timetable);
+      setLoaded(true);
+    } catch (err) {
+      toast({ title: 'Failed to load timetable', description: getErrorMessage(err), variant: 'destructive' });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onlyMine]);
 
   useEffect(() => {
     if (!isAuthenticated) return;
-    fetchTimetable();
-  }, [isAuthenticated]);
+    loadTimetable();
+  }, [isAuthenticated, loadTimetable]);
 
-  async function fetchTimetable() {
-    try {
-      const res = await api.get<{ timetable: TimetableEntry[] }>('/timetable');
-      setEntries(res.data.timetable);
-    } catch (err: any) {
-      toast({ title: 'Failed to load timetable', description: err.message, variant: 'destructive' });
+  useEffect(() => {
+    if (!isAuthenticated || !canEdit) return;
+    api
+      .get<{ courses: (TimetableCourse & { is_mine: boolean })[] }>('/courses')
+      .then((r) => setCourses(r.data.courses))
+      .catch((err) =>
+        toast({ title: 'Failed to load courses', description: getErrorMessage(err), variant: 'destructive' }),
+      );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, canEdit]);
+
+  // Several classes can share a day and period (different rooms and teachers), so each cell is a list.
+  const { grid, periods, periodTimes } = useMemo(() => {
+    const grid: Record<string, TimetableEntry[]> = {};
+    const times: Record<number, { start: string; end: string }> = {};
+    let max = MIN_PERIODS;
+    for (const e of entries) {
+      (grid[`${e.day_of_week}-${e.period_number}`] ??= []).push(e);
+      times[e.period_number] ??= { start: e.start_time, end: e.end_time };
+      max = Math.max(max, e.period_number);
     }
-  }
+    return {
+      grid,
+      periods: Array.from({ length: max }, (_, i) => i + 1),
+      periodTimes: times,
+    };
+  }, [entries]);
 
   if (isLoading) {
     return (
@@ -51,57 +94,215 @@ export default function TimetablePage() {
 
   if (!isAuthenticated) return null;
 
-  // Group by day -> period
-  const grid: Record<number, Record<number, TimetableEntry>> = {};
-  entries.forEach((e) => {
-    if (!grid[e.day_of_week]) grid[e.day_of_week] = {};
-    grid[e.day_of_week][e.period_number] = e;
-  });
+  // A teacher schedules only the courses they teach; an admin any course.
+  const schedulable = isTeacher ? courses.filter((c) => c.is_mine) : courses;
+  const canAdd = canEdit && schedulable.length > 0;
+  // JS getDay(): Sunday = 0, so Monday-Friday are already 1-5.
+  const today = new Date().getDay();
+
+  const openCreate = (day?: number, period?: number) => {
+    setFormMode('create');
+    setEditing(null);
+    setCell({ day, period });
+    setFormOpen(true);
+  };
+  const openEdit = (entry: TimetableEntry) => {
+    setFormMode('edit');
+    setEditing(entry);
+    setFormOpen(true);
+  };
+  const handleSaved = () => {
+    toast({ title: formMode === 'create' ? 'Class added' : 'Class updated', variant: 'success' });
+    loadTimetable();
+  };
+  const handleDelete = async () => {
+    if (!deleting) return;
+    await api.delete(`/timetable/${deleting.id}`);
+    toast({ title: 'Class removed', variant: 'success' });
+    loadTimetable();
+  };
 
   return (
     <div className="min-h-screen w-full bg-site-bg px-4 py-12">
-      <div className="max-w-5xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold text-site-text">Weekly Timetable</h1>
-          <p className="text-site-muted">Class schedule by day and period.</p>
+      <div className="max-w-6xl mx-auto">
+        <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-site-text">Weekly Timetable</h1>
+            <p className="text-site-muted">
+              {isTeacher
+                ? 'Your classes by day and period. Add or change the ones for courses you teach.'
+                : canEdit
+                  ? 'Class schedule by day and period. Add, move or remove classes for any course.'
+                  : 'Class schedule by day and period.'}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            {isTeacher && (
+              <div className="flex gap-1" role="tablist" aria-label="Timetable scope">
+                {(
+                  [
+                    { id: 'mine', label: 'My classes' },
+                    { id: 'all', label: 'Whole school' },
+                  ] as { id: View; label: string }[]
+                ).map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={view === t.id}
+                    onClick={() => setView(t.id)}
+                    className={cn(
+                      'px-3 py-2 rounded-md text-sm font-medium border transition-colors',
+                      view === t.id
+                        ? 'bg-primary text-primary-foreground border-primary'
+                        : 'bg-white text-site-muted border-site-border hover:text-site-text dark:bg-card',
+                    )}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            )}
+            {canAdd && (
+              <Button onClick={() => openCreate()}>
+                <Plus className="w-4 h-4 mr-1" /> Add class
+              </Button>
+            )}
+          </div>
         </div>
 
-        <div className="rounded-xl border border-site-border bg-site-card overflow-hidden">
-          <div className="grid grid-cols-6 border-b border-site-border">
-            <div className="px-3 py-4 font-bold text-site-text border-r border-site-border">Period</div>
-            {DAYS.map((day) => (
-              <div key={day} className="px-3 py-4 font-bold text-center border-r border-site-border bg-primary/5">
-                {day}
-              </div>
-            ))}
-          </div>
-          {[1, 2, 3, 4, 5, 6, 7, 8].map((period) => (
-            <div key={period} className="grid grid-cols-6 border-b border-site-border divide-x divide-site-border">
-              <div className="px-3 py-4 font-medium text-site-muted border-r border-site-border bg-gray-50">
-                <Clock className="w-4 h-4 mr-1" /> {period}
-              </div>
-              {DAYS.map((_day, dayIdx) => (
+        {canEdit && courses.length > 0 && !canAdd && (
+          <p className="mb-4 text-sm text-site-muted">You are not assigned to any course yet, so there is nothing to schedule.</p>
+        )}
+
+        {loaded && entries.length === 0 && (
+          <p className="mb-4 text-sm text-site-muted">
+            {canAdd ? 'No classes scheduled yet. Use “Add class” to build the timetable.' : 'No classes are scheduled yet.'}
+          </p>
+        )}
+
+        <div className="rounded-xl border border-site-border bg-site-card overflow-x-auto">
+          <div className="min-w-[860px]">
+            <div className="grid grid-cols-[88px_repeat(5,minmax(0,1fr))] border-b border-site-border">
+              <div className="px-3 py-4 font-bold text-site-text border-r border-site-border">Period</div>
+              {DAY_SHORT.map((day, i) => (
                 <div
-                  key={dayIdx}
-                  className="px-3 py-3 border-b border-site-border last:border-b-0 min-h-[80px] flex flex-col gap-1"
+                  key={day}
+                  className={cn(
+                    'px-3 py-4 font-bold text-center border-r border-site-border last:border-r-0',
+                    today === i + 1 ? 'bg-primary/15 text-primary' : 'bg-primary/5',
+                  )}
                 >
-                  {grid[dayIdx + 1]?.[period] ? (
-                    <div className="rounded-lg bg-primary p-2 text-white shadow-sm">
-                      <div className="font-bold text-sm">{grid[dayIdx + 1]![period]!.course_code}</div>
-                      <div className="truncate text-xs">{grid[dayIdx + 1]![period]!.course_name}</div>
-                      <div className="text-[10px] opacity-80">
-                        {grid[dayIdx + 1]![period]!.teacher_first_name} {grid[dayIdx + 1]![period]!.teacher_last_name}
-                      </div>
-                      <div className="text-[10px] opacity-80">{grid[dayIdx + 1]![period]!.room}</div>
-                    </div>
-                  ) : null}
+                  {day}
                 </div>
               ))}
             </div>
-          ))}
+
+            {periods.map((period) => (
+              <div
+                key={period}
+                className="grid grid-cols-[88px_repeat(5,minmax(0,1fr))] border-b border-site-border last:border-b-0"
+              >
+                <div className="px-3 py-3 border-r border-site-border bg-gray-50 dark:bg-muted/40">
+                  <div className="font-medium text-site-text">{period}</div>
+                  {periodTimes[period] && (
+                    <div className="text-[10px] text-site-muted leading-tight">
+                      {periodTimes[period].start}–{periodTimes[period].end}
+                    </div>
+                  )}
+                </div>
+                {DAY_SHORT.map((_day, dayIdx) => {
+                  const here = grid[`${dayIdx + 1}-${period}`] ?? [];
+                  return (
+                    <div
+                      key={dayIdx}
+                      className="group relative px-2 py-2 border-r border-site-border last:border-r-0 min-h-[84px] flex flex-col gap-1"
+                    >
+                      {here.map((e) => (
+                        <div key={e.id} className="rounded-lg bg-primary p-2 text-white shadow-sm">
+                          <div className="flex items-start justify-between gap-1">
+                            <div className="min-w-0">
+                              <div className="font-bold text-sm">{e.course_code}</div>
+                              <div className="truncate text-xs">{e.course_name}</div>
+                            </div>
+                            {e.can_manage && (
+                              <div className="flex shrink-0 -mr-1 -mt-1">
+                                <button
+                                  type="button"
+                                  aria-label={`Edit ${e.course_code}`}
+                                  onClick={() => openEdit(e)}
+                                  className="p-1 rounded hover:bg-white/20"
+                                >
+                                  <Pencil className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  aria-label={`Remove ${e.course_code}`}
+                                  onClick={() => setDeleting(e)}
+                                  className="p-1 rounded hover:bg-white/20"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                          <div className="text-[10px] opacity-80">
+                            {e.teacher_first_name} {e.teacher_last_name}
+                          </div>
+                          <div className="text-[10px] opacity-80">
+                            {e.room} · {e.start_time}–{e.end_time}
+                          </div>
+                        </div>
+                      ))}
+                      {canAdd && (
+                        <button
+                          type="button"
+                          aria-label={`Add a class on ${DAY_SHORT[dayIdx]} period ${period}`}
+                          onClick={() => openCreate(dayIdx + 1, period)}
+                          className={cn(
+                            'flex items-center justify-center rounded-lg border border-dashed border-site-border text-site-muted hover:text-primary hover:border-primary transition-opacity',
+                            here.length === 0
+                              ? 'flex-1 opacity-0 group-hover:opacity-100 focus:opacity-100'
+                              : 'h-6 opacity-0 group-hover:opacity-100 focus:opacity-100',
+                          )}
+                        >
+                          <Plus className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
         </div>
       </div>
+
+      <TimetableFormDialog
+        open={formOpen}
+        onOpenChange={setFormOpen}
+        mode={formMode}
+        courses={schedulable}
+        entry={editing}
+        initialDay={cell.day}
+        initialPeriod={cell.period}
+        periodTimes={periodTimes}
+        onSaved={handleSaved}
+      />
+
+      <ConfirmDialog
+        open={deleting !== null}
+        onOpenChange={(open) => !open && setDeleting(null)}
+        title="Remove this class?"
+        description={
+          deleting
+            ? `${deleting.course_code} on ${DAY_SHORT[deleting.day_of_week - 1]}, period ${deleting.period_number} will be removed from the timetable.`
+            : ''
+        }
+        confirmLabel="Remove"
+        destructive
+        onConfirm={handleDelete}
+      />
     </div>
   );
 }
-
