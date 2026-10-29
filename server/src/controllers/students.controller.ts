@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { sql } from '../config/db.js';
 import type { AppError } from '../middleware/errorHandler.js';
+import { parseUuid } from '../utils/access.js';
 
 export async function listStudents(_req: Request, res: Response): Promise<void> {
   const { search, subject } = _req.query as {
@@ -32,7 +33,8 @@ export async function listStudents(_req: Request, res: Response): Promise<void> 
 }
 
 export async function getStudent(_req: Request, res: Response): Promise<void> {
-  const { id } = _req.params as { id: string };
+  // A malformed id is a 400 here instead of a Postgres "invalid input syntax for type uuid" 500.
+  const id = parseUuid(_req.params.id, 'student id');
 
   const [student] = await sql`
     SELECT s.id, s.student_id, s.enrollment_date,

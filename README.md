@@ -1,72 +1,151 @@
 # PBSI Management System
 
-A modern, zero-cost school management system built with the PERN stack (PostgreSQL, Express, React, Node). Features RBAC, student records, courses/modules, assignments, auto-graded quizzes, attendance, timetables, grades & GPA, discussions, notifications, audit logs, and Cloudinary-backed file storage.
+A zero-cost school management system built with the PERN stack (PostgreSQL, Express, React, Node).
+Administrators, teachers and students each get their own role-based dashboard for courses, modules,
+assignments, auto-graded quizzes, grades, attendance, timetables, discussions and notifications.
+
+## Roles
+
+There are three roles. Accounts are created by staff; public sign-up is disabled
+(`POST /api/auth/register` returns 403).
+
+| Role | What they can do |
+|------|------------------|
+| **admin** | Everything: manage all users, courses, grades, timetable and audit logs; export students to CSV |
+| **teacher** | Manage their own courses, modules, assignments, quizzes and timetable entries; grade submissions; view and adjust grades for the courses they teach; create student accounts |
+| **student** | View their own courses, grades and attendance; submit assignments; take published quizzes; join discussions |
+
+## Features
+
+- **Users and RBAC**: `verifyToken` + `restrictTo(...roles)` middleware, plus ownership checks (a teacher only manages the courses they teach, a student only sees their own records). Admins can create, edit, deactivate/reactivate, reset passwords for and delete users.
+- **Session revocation**: deactivating an account or resetting its password ends that person's sessions immediately (`users.tokens_valid_after`, checked on every request and on token refresh).
+- **Courses and modules**, with teacher assignment.
+- **Assignments and submissions**: students submit, teachers grade with feedback.
+- **Quizzes**: teachers build quizzes and questions; student attempts are graded automatically. Questions are frozen once a student has taken the quiz.
+- **Grades**: written automatically when an assignment is graded or a quiz is submitted. Scores are percentages (0-100). A teacher (own courses) or an admin can adjust a grade; the change is audited and the student is notified. A student's average is calculated live from the `grades` table.
+- **Grade terms**: `grades.term` is the school year label (June starts a new year, Manila time), e.g. `2026` covers June 2026 to May 2027.
+- **Attendance**, **timetable**, **discussions** (threads and replies), **notifications**.
+- **Audit logs** for role changes, deactivations, password resets, deletions and grade overrides (admin only).
+- **Dashboards** with role-specific stats.
 
 ## Tech Stack
-- **Frontend:** React (Vite) + TypeScript + Tailwind CSS + Lucide Icons + shadcn-style UI (Radix primitives), deployed to Vercel
-- **Backend:** Node.js + Express.js + TypeScript, deployed to Render
-- **Database:** PostgreSQL serverless via Neon.tech (`@neondatabase/serverless`, SSL pooling)
-- **Storage:** Cloudinary (backend-signed uploads)
+
+- **Frontend** (`client/`): React 18, Vite 6, TypeScript, Tailwind CSS, Radix UI primitives (shadcn-style components), React Router 7, React Query, react-hook-form + zod, Axios.
+- **Backend** (`server/`): Node 20+, Express 4, TypeScript (ESM), zod validation, `jsonwebtoken`, `bcryptjs`, helmet, CORS, `express-rate-limit`.
+- **Database**: PostgreSQL on [Neon](https://neon.tech), accessed through `@neondatabase/serverless` (tagged-template `sql` queries).
+- **Hosting**: client on Vercel (SPA rewrite in `client/vercel.json`), API on Render.
 
 ## Repo Structure
+
 ```
 pbsi-management-system/
-├── client/          # Vite + React frontend (Vercel)
-├── server/          # Express API (Render)
+├── client/                 # Vite + React frontend
+│   └── src/{pages,components,contexts,hooks,lib}
+├── server/                 # Express API
+│   ├── sql/                # One-off SQL scripts to run in the Neon SQL editor (see below)
+│   └── src/{routes,controllers,middleware,utils,config,types}
+├── neon.ts                 # Neon project config (branch policy)
+├── DESIGN_SYSTEM.md        # NOTE: describes the separate PBSI marketing site, not this app
 └── README.md
-```
-
-## Environment Variables
-
-### Server (`server/.env`)
-```
-PORT=4000
-NODE_ENV=development
-CORS_ORIGIN=http://localhost:5173
-DATABASE_URL="postgres://...?sslmode=require"
-JWT_ACCESS_SECRET=...
-JWT_REFRESH_SECRET=...
-JWT_ACCESS_EXPIRES_IN=15m
-JWT_REFRESH_EXPIRES_IN=7d
-CLOUDINARY_CLOUD_NAME=...
-CLOUDINARY_API_KEY=...
-CLOUDINARY_API_SECRET=...
-```
-
-### Client (`client/.env`)
-```
-VITE_API_URL=http://localhost:4000
 ```
 
 ## Getting Started
 
+Requires Node.js 20 or newer and a Neon (or any PostgreSQL) database.
+
 ```bash
-# Install server dependencies
+# 1. Server
 cd server
+cp .env.example .env        # then fill in the values
 npm install
+npm run dev                 # http://localhost:4000
 
-# Install client dependencies
-cd ../client
-npm install
-
-# Run server (dev)
-cd server
-npm run dev
-
-# Run client (dev)
+# 2. Client (in a second terminal)
 cd client
-npm run dev
+npm install
+npm run dev                 # http://localhost:5173 (proxies /api to localhost:4000)
 ```
 
-## Database Schema
-Core tables: `users`, `profiles`, `students`, `teachers`, `parents`, `parent_students`, `courses`, `modules`, `assignments`, `submissions`, `quizzes`, `quiz_questions`, `quiz_attempts`, `attendance`, `timetable`, `grades`, `discussion_threads`, `discussion_replies`, `notifications`, `audit_logs`.
+> **Windows only:** `server`'s `dev` script uses `set TS_NODE_TRANSPILE_ONLY=true&&`, which works in
+> Windows `cmd`/npm but not on macOS/Linux. On those systems run
+> `TS_NODE_TRANSPILE_ONLY=true node --env-file=.env --watch --experimental-specifier-resolution=node --loader ts-node/esm src/server.ts`.
 
-Create these tables in your Neon database before running the server. See `server/src/controllers/` for expected column names.
+Other scripts: `npm run typecheck` (both packages), `npm run build` (both packages), `npm start` (server, runs `dist/`).
+
+## Environment Variables
+
+### Server (`server/.env`)
+
+| Variable | Purpose |
+|----------|---------|
+| `PORT` | API port (default `4000`) |
+| `NODE_ENV` | `development` or `production` (production sets secure, `SameSite=None` cookies) |
+| `CORS_ORIGIN` | Allowed frontend origin, e.g. `http://localhost:5173` |
+| `DATABASE_URL` | Neon connection string (`?sslmode=require`) |
+| `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET` | Token signing secrets (use long random values) |
+| `JWT_ACCESS_EXPIRES_IN`, `JWT_REFRESH_EXPIRES_IN` | Token lifetimes (default `15m` / `7d`) |
+| `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` | Required at startup by `src/config/cloudinary.ts` (see Known Gaps) |
+
+### Client (`client/.env`)
+
+```
+VITE_API_URL=http://localhost:4000     # optional; defaults to /api (Vite dev proxy)
+```
+
+`/api` is appended automatically if missing.
+
+## Database
+
+The app expects these tables (derived from the queries in `server/src/controllers/`):
+
+`users`, `profiles`, `students`, `teachers`, `courses`, `modules`, `assignments`, `submissions`,
+`quizzes`, `quiz_questions`, `quiz_attempts`, `grades`, `attendance`, `timetable`,
+`discussion_threads`, `discussion_replies`, `notifications`, `audit_logs`.
+
+There is no full schema file in the repo yet; create the tables in Neon first. Column names are the
+ones the controllers use.
+
+### SQL scripts (`server/sql/`)
+
+Run these by hand in the Neon SQL editor. All are safe to run more than once.
+
+| Script | When | Notes |
+|--------|------|-------|
+| `token-revocation.sql` | **Before** deploying the current server | Adds `users.tokens_valid_after`; the API reads it on every request |
+| `2d-backfill-grades.sql` | After deploying | One-time copy of old graded submissions and quiz attempts into `grades` |
+| `2d-optional-unique-indexes.sql` | After the backfill | Optional. Check for duplicates first; adds unique indexes on `grades` and `quiz_attempts` |
+| `drop-students-cumulative-gpa.sql` | Eventually, once the latest code has been running fine | Drops the unused `students.cumulative_gpa` column |
+
+## API Overview
+
+All routes are under `/api` and need a valid session except `/auth/login`, `/auth/logout`, `/auth/refresh` and `/health`.
+
+| Prefix | Notes |
+|--------|-------|
+| `/auth` | `login`, `logout`, `refresh`, `me` (`register` is disabled) |
+| `/users` | List/create/edit, activate/deactivate, reset password, delete (admin/teacher, role-limited) |
+| `/students` | List (admin/teacher), detail, `export/csv` (admin) |
+| `/teachers` | List (admin) |
+| `/courses`, `/modules` | CRUD scoped to the owning teacher or an admin |
+| `/assignments`, `/submissions` | CRUD and grading |
+| `/quizzes`, `/quiz-attempts` | Quiz and question management, student attempts |
+| `/grades` | List (scoped by role), `gpa/:student_id` (average percentage; `me` for the signed-in student), `PATCH /:id` adjust a grade |
+| `/attendance`, `/timetable` | Records and schedules |
+| `/discussions`, `/notifications` | Threads, replies, in-app notifications |
+| `/audit-logs` | Admin only |
+| `/dashboard/stats` | Role-specific counts |
+| `/health` | Liveness check |
 
 ## Security
-- JWT access (15m) + refresh (7d) tokens in httpOnly cookies
-- bcrypt password hashing (salt 12)
-- `verifyToken` + `restrictTo(...roles)` middleware
-- Ownership checks on student/grade/attendance/submission routes
-- Rate limiting, helmet, CORS, xss-clean, mongo-sanitize
-- Audit logs for role changes, deletions, grade overrides
+
+- Passwords hashed with bcrypt; access (15 min) and refresh (7 day) JWTs are set as httpOnly cookies. The client also keeps the access token in `localStorage` and sends it as a Bearer header, refreshing it automatically on a 401.
+- Every request re-checks that the account is active and that the token was issued after `tokens_valid_after`.
+- Zod validation on request bodies; UUID parameters are validated so malformed ids return 400, not a database error.
+- `helmet`, CORS locked to `CORS_ORIGIN`, a 10 kB JSON body limit, and rate limiting (20 login attempts per 15 min, 100 per 15 min on other `/auth` routes, 300 per 15 min overall).
+- Audit log entries for sensitive admin and grading actions.
+
+## Known Gaps
+
+- No schema/migration tool or tests yet; schema changes are manual SQL in `server/sql/`.
+- Cloudinary is configured (`src/config/cloudinary.ts`) but no upload routes use it yet.
+- `DESIGN_SYSTEM.md` documents a different repository (the PBSI marketing site).
