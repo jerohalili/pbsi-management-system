@@ -108,4 +108,9 @@
   .rich-content hr {
     @apply my-4 border-muted-foreground/30;
   }
+  .rich-content img,
+  .rich-content video {
+    @apply h-auto max-w-full rounded-md object-contain;
+    max-height: min(28rem, 70vh);
+  }
 }

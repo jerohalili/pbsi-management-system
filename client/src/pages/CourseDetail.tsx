@@ -323,7 +323,7 @@ export default function CourseDetailPage() {
               return (
                 <Card key={m.id} className="p-5">
                   <div className="flex items-start justify-between gap-4">
-                    <div className="flex items-start gap-2 min-w-0">
+                    <div className="flex min-w-0 flex-1 items-start gap-2">
                       <button
                         type="button"
                         className="mt-0.5 shrink-0 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -334,7 +334,7 @@ export default function CourseDetailPage() {
                       >
                         {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                       </button>
-                      <div className="space-y-2 min-w-0">
+                      <div className="min-w-0 flex-1 space-y-3">
                         <h3 className="font-bold">
                           <span className="text-muted-foreground mr-2">{index + 1}.</span>
                           {m.title}

@@ -1,6 +1,4 @@
 import { Video, Image, FileText, Download, ExternalLink } from 'lucide-react';
-import { Badge } from '@/components/ui/badge.tsx';
-import { Card } from '@/components/ui/card.tsx';
 import { cn } from '@/lib/utils.ts';
 import { hasHtmlTags, sanitizeHtml } from '@/lib/sanitize.ts';
 
@@ -19,6 +17,9 @@ export interface ModuleContent {
 
 const isWebUrl = (value: string | null | undefined): value is string =>
   !!value && /^https?:\/\//i.test(value);
+
+/** Pictures and videos never grow taller than this, however wide the page is. */
+const MEDIA_MAX_HEIGHT = 'max-h-[min(28rem,70vh)]';
 
 function ContentBlock({ block }: { block: ModuleContent }) {
   switch (block.type) {
@@ -39,18 +40,18 @@ function ContentBlock({ block }: { block: ModuleContent }) {
     case 'video': {
       const url = isWebUrl(block.url) ? block.url : '';
       return (
-        <div className="rounded-xl border border-input bg-background overflow-hidden aspect-video">
+        <div className="overflow-hidden rounded-xl border border-input bg-black">
           {url ? (
             <video
               controls
-              className="w-full h-full"
+              className={cn('mx-auto block w-full bg-black', MEDIA_MAX_HEIGHT)}
               poster={block.resource_type === 'image' ? url : undefined}
             >
               <source src={url} type="video/mp4" />
               Your browser does not support the video tag.
             </video>
           ) : (
-            <div className="flex h-full flex-col items-center justify-center text-muted-foreground">
+            <div className="flex h-48 flex-col items-center justify-center bg-background text-muted-foreground">
               <Video className="w-12 h-12 mb-2" />
               <p>Video not available</p>
             </div>
@@ -61,11 +62,15 @@ function ContentBlock({ block }: { block: ModuleContent }) {
     case 'image': {
       const url = isWebUrl(block.url) ? block.url : '';
       return (
-        <div className="rounded-xl border border-input bg-background overflow-hidden">
+        <div className="flex justify-center overflow-hidden rounded-xl border border-input bg-muted/30">
           {url ? (
-            <img src={url} alt={block.title ?? 'Image'} className="w-full h-auto max-h-96 object-cover" />
+            <img
+              src={url}
+              alt={block.title ?? 'Image'}
+              className={cn('block h-auto w-auto max-w-full object-contain', MEDIA_MAX_HEIGHT)}
+            />
           ) : (
-            <div className="flex h-48 flex-col items-center justify-center text-muted-foreground">
+            <div className="flex h-48 w-full flex-col items-center justify-center text-muted-foreground">
               <Image className="w-12 h-12 mb-2" />
               <p>Image not available</p>
             </div>
@@ -127,14 +132,10 @@ function ContentBlock({ block }: { block: ModuleContent }) {
   }
 }
 
-const typeLabel: Record<string, string> = {
-  text: 'Text',
-  video: 'Video',
-  image: 'Image',
-  file: 'File',
-  link: 'Link',
-};
-
+/**
+ * The content blocks of one module, flowing as part of the module itself: no box or badge per
+ * block, just a divider under the lesson notes and consistent spacing between blocks.
+ */
 export function ModuleContentViewer({
   contents,
 }: {
@@ -143,37 +144,33 @@ export function ModuleContentViewer({
   if (!contents || contents.length === 0) return null;
 
   return (
-    <section className="space-y-4">
-      <h2 className="text-xl font-bold">Contents</h2>
-      <div className="space-y-3">
-        {contents.map((block) => (
-          <Card key={block.id} className="p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <Badge variant="outline" className="text-xs">
-                  {typeLabel[block.type]}
-                </Badge>
-                {block.title && (
-                  <h3 className="font-semibold">{block.title}</h3>
-                )}
-              </div>
-              <div className="flex shrink-0 gap-1">
-                {block.type === 'video' && isWebUrl(block.url) && (
+    <div className="space-y-5 border-t border-input pt-4">
+      {contents.map((block) => {
+        // File and link blocks already show their own title inside the row.
+        const showTitle =
+          !!block.title && (block.type === 'text' || block.type === 'video' || block.type === 'image');
+        const videoUrl = block.type === 'video' && isWebUrl(block.url) ? block.url : '';
+        return (
+          <div key={block.id} className="space-y-2">
+            {(showTitle || videoUrl) && (
+              <div className="flex items-baseline justify-between gap-3">
+                {showTitle ? <h4 className="font-semibold">{block.title}</h4> : <span />}
+                {videoUrl && (
                   <a
-                    href={block.url}
+                    href={videoUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-xs text-primary hover:underline"
+                    className="shrink-0 text-xs text-primary hover:underline"
                   >
                     Open in new tab
                   </a>
                 )}
               </div>
-            </div>
-            <div className="mt-3">{<ContentBlock block={block} />}</div>
-          </Card>
-        ))}
-      </div>
-    </section>
+            )}
+            <ContentBlock block={block} />
+          </div>
+        );
+      })}
+    </div>
   );
 }
