@@ -252,5 +252,16 @@ export const updateModuleContentSchema = moduleContentSchema
   .omit({ module_id: true })
   .partial();
 
+export const reorderModuleContentsSchema = z.object({
+  contents: z
+    .array(
+      z.object({
+        id: z.string().uuid('Invalid content ID'),
+        order_index: z.number().int().nonnegative(),
+      }),
+    )
+    .max(200),
+});
+
 export type ModuleContentInput = z.infer<typeof moduleContentSchema>;
 export type UpdateModuleContentInput = z.infer<typeof updateModuleContentSchema>;

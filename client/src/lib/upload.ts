@@ -9,12 +9,21 @@ export interface UploadResult {
   kind: UploadKind;
 }
 
-/** Upload a file to Cloudinary via the API. */
-export async function uploadFile(file: File, kind: UploadKind): Promise<UploadResult> {
+/** Upload a file to Cloudinary via the API. `onProgress` receives 0-100. */
+export async function uploadFile(
+  file: File,
+  kind: UploadKind,
+  onProgress?: (percent: number) => void,
+): Promise<UploadResult> {
   const formData = new FormData();
   formData.append('file', file);
   const { data } = await api.post<UploadResult>(`/upload/${kind}`, formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
+    onUploadProgress: (event) => {
+      if (!onProgress) return;
+      const total = event.total ?? file.size;
+      if (total > 0) onProgress(Math.min(100, Math.round((event.loaded * 100) / total)));
+    },
   });
   return data;
 }
@@ -24,5 +33,8 @@ export async function deleteUploadedFile(
   publicId: string,
   resourceType: string,
 ): Promise<void> {
-  await api.delete(`/upload/${publicId}`, { data: { resource_type: resourceType } });
+  // Public ids contain "/" (e.g. pbsi/modules/images/...), so the id must be URL-encoded.
+  await api.delete(`/upload/${encodeURIComponent(publicId)}`, {
+    data: { resource_type: resourceType },
+  });
 }

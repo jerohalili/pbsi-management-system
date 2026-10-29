@@ -1,6 +1,8 @@
 import { Video, Image, FileText, Download, ExternalLink } from 'lucide-react';
 import { Badge } from '@/components/ui/badge.tsx';
 import { Card } from '@/components/ui/card.tsx';
+import { cn } from '@/lib/utils.ts';
+import { hasHtmlTags, sanitizeHtml } from '@/lib/sanitize.ts';
 
 export interface ModuleContent {
   id: string;
@@ -22,11 +24,12 @@ function ContentBlock({ block }: { block: ModuleContent }) {
   switch (block.type) {
     case 'text':
       return (
-        <div className="prose prose-sm max-w-none text-foreground">
+        <div className="text-foreground">
           {block.content ? (
             <div
-              className="whitespace-pre-wrap break-words"
-              dangerouslySetInnerHTML={{ __html: block.content }}
+              // Plain-text blocks from before the editor keep their line breaks.
+              className={cn('rich-content', !hasHtmlTags(block.content) && 'whitespace-pre-wrap')}
+              dangerouslySetInnerHTML={{ __html: sanitizeHtml(block.content) }}
             />
           ) : (
             <p className="text-muted-foreground italic">(no content)</p>

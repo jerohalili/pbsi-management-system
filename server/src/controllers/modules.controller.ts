@@ -4,6 +4,7 @@ import type { AppError } from '../middleware/errorHandler.js';
 import {
   moduleContentSchema,
   moduleSchema,
+  reorderModuleContentsSchema,
   updateModuleContentSchema,
 } from '../utils/validation.js';
 import { deleteFromCloudinary } from '../utils/upload.js';
@@ -142,6 +143,7 @@ export async function listModuleContents(req: Request, res: Response): Promise<v
 export async function createModuleContent(req: Request, res: Response): Promise<void> {
   if (!req.user) throw httpError(401, 'Not authenticated');
   const input = moduleContentSchema.parse(req.body);
+  assertHttpUrl(input.url, 'Link');
 
   await assertCanManageModule(req.user, input.module_id);
 
@@ -162,8 +164,11 @@ export async function updateModuleContent(req: Request, res: Response): Promise<
   if (!req.user) throw httpError(401, 'Not authenticated');
   const id = parseUuid(req.params.id, 'content id');
   const input = updateModuleContentSchema.parse(req.body);
+  assertHttpUrl(input.url, 'Link');
 
-  const [existing] = await sql`SELECT module_id FROM module_contents WHERE id = ${id}`;
+  const [existing] = await sql`
+    SELECT module_id, cloudinary_public_id, resource_type FROM module_contents WHERE id = ${id}
+  `;
   if (!existing) throw httpError(404, 'Content not found');
   await assertCanManageModule(req.user, existing.module_id as string);
 
@@ -172,6 +177,8 @@ export async function updateModuleContent(req: Request, res: Response): Promise<
   const contentProvided = input.content !== undefined;
   const urlProvided = input.url !== undefined;
   const typeProvided = input.type !== undefined;
+  const publicIdProvided = input.cloudinary_public_id !== undefined;
+  const resourceTypeProvided = input.resource_type !== undefined;
 
   const [content] = await sql`
     UPDATE module_contents
@@ -179,11 +186,22 @@ export async function updateModuleContent(req: Request, res: Response): Promise<
         title = CASE WHEN ${titleProvided}::boolean THEN ${input.title ?? null} ELSE title END,
         content = CASE WHEN ${contentProvided}::boolean THEN ${input.content ?? null} ELSE content END,
         url = CASE WHEN ${urlProvided}::boolean THEN ${input.url ?? null} ELSE url END,
+        cloudinary_public_id = CASE WHEN ${publicIdProvided}::boolean THEN ${input.cloudinary_public_id ?? null} ELSE cloudinary_public_id END,
+        resource_type = CASE WHEN ${resourceTypeProvided}::boolean THEN ${input.resource_type ?? null} ELSE resource_type END,
         order_index = COALESCE(${input.order_index ?? null}, order_index)
     WHERE id = ${id}
     RETURNING id, module_id, type, title, content, url, cloudinary_public_id, resource_type,
               order_index, created_at
   `;
+
+  // The file was replaced or cleared: drop the old Cloudinary asset only after the row is saved.
+  const oldPublicId = existing.cloudinary_public_id as string | null;
+  if (oldPublicId && publicIdProvided && (input.cloudinary_public_id ?? null) !== oldPublicId) {
+    await deleteFromCloudinary(
+      oldPublicId,
+      (existing.resource_type ?? 'raw') as 'image' | 'video' | 'raw',
+    );
+  }
   res.json({ content });
 }
 
@@ -197,41 +215,44 @@ export async function deleteModuleContent(req: Request, res: Response): Promise<
   if (!existing) throw httpError(404, 'Content not found');
   await assertCanManageModule(req.user, existing.module_id as string);
 
+  // Delete the row first: if this fails nothing is lost, and the Cloudinary cleanup is best-effort.
+  await sql`DELETE FROM module_contents WHERE id = ${id}`;
   if (existing.cloudinary_public_id) {
     await deleteFromCloudinary(
       existing.cloudinary_public_id as string,
       (existing.resource_type ?? 'raw') as 'image' | 'video' | 'raw',
     );
   }
-
-  await sql`DELETE FROM module_contents WHERE id = ${id}`;
   res.json({ message: 'Content deleted' });
 }
 
 export async function reorderModuleContents(req: Request, res: Response): Promise<void> {
   if (!req.user) throw httpError(401, 'Not authenticated');
+  const input = reorderModuleContentsSchema.parse(req.body);
 
-  let input: { contents: { id: string; order_index: number }[] };
-  try {
-    input = req.body as { contents: { id: string; order_index: number }[] };
-  } catch {
-    throw httpError(400, 'Invalid request body');
-  }
-
-  if (!input || !input.contents || !Array.isArray(input.contents) || input.contents.length === 0) {
+  if (input.contents.length === 0) {
     res.json({ message: 'Nothing to reorder' });
     return;
   }
 
-  // Verify the user manages the module of the first content item
-  const [first] = await sql`
-    SELECT module_id FROM module_contents WHERE id = ${input.contents[0].id}
-  `;
-  if (!first) throw httpError(404, 'Content not found');
-  await assertCanManageModule(req.user, first.module_id as string);
+  const ids = input.contents.map((item) => item.id);
+  if (new Set(ids).size !== ids.length) throw httpError(400, 'Duplicate content ids');
 
-  const statements = input.contents.map((item) =>
-    sql`UPDATE module_contents SET order_index = ${item.order_index} WHERE id = ${item.id}`,
+  // Authorise against the module of the first block, then require every block to belong to it.
+  const [first] = await sql`SELECT module_id FROM module_contents WHERE id = ${ids[0]}`;
+  if (!first) throw httpError(404, 'Content not found');
+  const moduleId = first.module_id as string;
+  await assertCanManageModule(req.user, moduleId);
+
+  const owned = await sql`SELECT id FROM module_contents WHERE module_id = ${moduleId}`;
+  const ownedIds = new Set(owned.map((row) => row.id as string));
+  if (!ids.every((id) => ownedIds.has(id))) {
+    throw httpError(400, 'All content blocks must belong to the same module');
+  }
+
+  const statements = input.contents.map(
+    (item) =>
+      sql`UPDATE module_contents SET order_index = ${item.order_index} WHERE id = ${item.id} AND module_id = ${moduleId}`,
   );
   await sql.transaction(statements);
   res.json({ message: 'Reordered' });
