@@ -238,6 +238,9 @@ export default function QuizDetailPage() {
                           <span>{question.points} {question.points === 1 ? 'point' : 'points'}</span>
                         </div>
                         <p className="whitespace-pre-wrap break-words">{question.question_text}</p>
+                        {question.image_url && (
+                          <img src={question.image_url} alt="Picture for this question" className="max-h-72 w-auto max-w-full rounded-lg border border-input" loading="lazy" />
+                        )}
                         {question.type === 'mcq' && (
                           <ul className="space-y-1 text-sm">
                             {(question.options ?? []).map((option) => (

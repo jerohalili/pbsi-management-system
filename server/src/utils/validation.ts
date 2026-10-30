@@ -49,6 +49,19 @@ export const resetPasswordSchema = z.object({
     .max(128),
 });
 
+// What anyone may change about their own profile (email, role and ids stay admin-managed).
+export const updateOwnProfileSchema = createUserSchema
+  .pick({ first_name: true, last_name: true, phone: true, date_of_birth: true, address: true })
+  .partial();
+
+export const changePasswordSchema = z.object({
+  current_password: z.string().min(1, 'Enter your current password'),
+  new_password: z
+    .string()
+    .min(8, 'Password must be at least 8 characters')
+    .max(128),
+});
+
 export const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
   password: z.string().min(1, 'Password is required'),

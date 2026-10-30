@@ -49,7 +49,14 @@ export async function uploadFile(req: Request, res: Response): Promise<void> {
 /** DELETE /api/upload/:publicId — best-effort Cloudinary cleanup. Body: { resource_type } */
 export async function deleteFile(req: Request, res: Response): Promise<void> {
   const publicId = req.params.publicId as string;
-  const { resource_type } = req.body as { resource_type?: UploadResourceType };
+  // This generic endpoint may only touch module media. Submissions, materials, avatars and quiz
+  // images are cleaned up by the code that owns them, never by an arbitrary public id.
+  if (!publicId.startsWith(`${FOLDER}/`) || publicId.includes('..')) {
+    const err = new Error('Only module uploads can be deleted here') as AppError;
+    err.statusCode = 403;
+    throw err;
+  }
+  const { resource_type } = (req.body ?? {}) as { resource_type?: UploadResourceType };
   const type = resource_type ?? 'raw';
 
   await deleteFromCloudinary(publicId, type);

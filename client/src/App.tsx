@@ -35,6 +35,7 @@ import Grades from '@/pages/Grades.tsx';
 import Discussions from '@/pages/Discussions.tsx';
 import Notifications from '@/pages/Notifications.tsx';
 import AuditLogs from '@/pages/AuditLogs.tsx';
+import Settings from '@/pages/Settings.tsx';
 
 type Role = 'admin' | 'teacher' | 'student';
 
@@ -87,6 +88,7 @@ const App = () => {
           <Route path="grades" element={<ProtectedRoute><Grades /></ProtectedRoute>} />
           <Route path="discussions" element={<ProtectedRoute><Discussions /></ProtectedRoute>} />
           <Route path="notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
+          <Route path="settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
           <Route path="audit-logs" element={<ProtectedRoute><AuditLogs /></ProtectedRoute>} />
         </Route>
         <Route path="*" element={<NotFound />} />

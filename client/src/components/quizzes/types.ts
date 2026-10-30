@@ -37,6 +37,8 @@ export interface QuizQuestion {
   type: QuestionType;
   options: string[] | null;
   points: number;
+  /** Optional picture shown with the question. */
+  image_url?: string | null;
   /** Only present for people who manage the quiz. */
   correct_answer?: string;
 }

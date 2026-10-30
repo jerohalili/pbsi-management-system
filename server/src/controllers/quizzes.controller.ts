@@ -16,6 +16,13 @@ import {
   parseUuid,
 } from '../utils/access.js';
 import { newTimeOrderedUuid } from '../utils/ids.js';
+import {
+  deleteFromCloudinary,
+  deleteManyFromCloudinary,
+  sniffImage,
+  uniqueFileName,
+  uploadToCloudinary,
+} from '../utils/upload.js';
 import type { AuthUser } from '../types/index.js';
 
 function currentUser(req: Request): AuthUser {
@@ -95,7 +102,7 @@ export async function getQuiz(req: Request, res: Response): Promise<void> {
   if (!quiz) throw httpError(404, 'Quiz not found');
 
   const questions = await sql`
-    SELECT id, quiz_id, question_text, type, options, points,
+    SELECT id, quiz_id, question_text, type, options, points, image_url,
            CASE WHEN ${quiz.can_manage}::boolean THEN correct_answer END AS correct_answer
     FROM quiz_questions
     WHERE quiz_id = ${id}
@@ -158,10 +165,15 @@ export async function deleteQuiz(req: Request, res: Response): Promise<void> {
   const user = currentUser(req);
   await assertCanManageQuiz(user, id);
 
+  const pictures = await sql`
+    SELECT image_public_id FROM quiz_questions WHERE quiz_id = ${id} AND image_public_id IS NOT NULL
+  `;
+
   // Cascade delete attempts before removing the quiz (questions go with ON DELETE CASCADE).
   await sql`DELETE FROM quiz_attempts WHERE quiz_id = ${id}`;
   const [quiz] = await sql`DELETE FROM quizzes WHERE id = ${id} RETURNING id`;
   if (!quiz) throw httpError(404, 'Quiz not found');
+  await deleteManyFromCloudinary(pictures.map((row) => row.image_public_id as string), 'image');
   res.json({ message: 'Quiz deleted' });
 }
 
@@ -199,7 +211,7 @@ export async function createQuestion(req: Request, res: Response): Promise<void>
     INSERT INTO quiz_questions (id, quiz_id, question_text, type, options, correct_answer, points)
     VALUES (${newTimeOrderedUuid()}, ${quizId}, ${input.question_text}, ${input.type},
             ${options}::text[], ${correct_answer}, ${input.points})
-    RETURNING id, quiz_id, question_text, type, options, correct_answer, points
+    RETURNING id, quiz_id, question_text, type, options, correct_answer, points, image_url
   `;
   res.status(201).json({ question });
 }
@@ -219,7 +231,7 @@ export async function updateQuestion(req: Request, res: Response): Promise<void>
     SET question_text = ${input.question_text}, type = ${input.type},
         options = ${options}::text[], correct_answer = ${correct_answer}, points = ${input.points}
     WHERE id = ${questionId} AND quiz_id = ${quizId}
-    RETURNING id, quiz_id, question_text, type, options, correct_answer, points
+    RETURNING id, quiz_id, question_text, type, options, correct_answer, points, image_url
   `;
   if (!question) throw httpError(404, 'Question not found');
   res.json({ question });
@@ -241,8 +253,86 @@ export async function deleteQuestion(req: Request, res: Response): Promise<void>
   }
 
   const [deleted] = await sql`
-    DELETE FROM quiz_questions WHERE id = ${questionId} AND quiz_id = ${quizId} RETURNING id
+    DELETE FROM quiz_questions WHERE id = ${questionId} AND quiz_id = ${quizId}
+    RETURNING id, image_public_id
   `;
   if (!deleted) throw httpError(404, 'Question not found');
+  if (deleted.image_public_id) await deleteFromCloudinary(deleted.image_public_id as string, 'image');
   res.json({ message: 'Question deleted' });
+}
+
+// ---- Question pictures ---------------------------------------------------------------------
+
+/**
+ * PUT /api/quizzes/:id/questions/:question_id/image — multipart field "file".
+ * Public on purpose (it is a diagram or photo, never an answer), and it follows the same rule as
+ * the question itself: frozen once a student has taken the quiz.
+ */
+export async function setQuestionImage(req: Request, res: Response): Promise<void> {
+  const user = currentUser(req);
+  const quizId = parseUuid(req.params.id, 'quiz id');
+  const questionId = parseUuid(req.params.question_id, 'question id');
+
+  await assertCanManageQuiz(user, quizId);
+  await assertQuizQuestionsEditable(quizId);
+
+  const file = req.file;
+  if (!file) throw httpError(400, 'Choose an image to upload');
+  if (!sniffImage(file.buffer)) throw httpError(400, 'That file isn’t a valid JPG, PNG or WebP image.');
+
+  const [existing] = await sql`
+    SELECT image_public_id FROM quiz_questions WHERE id = ${questionId} AND quiz_id = ${quizId}
+  `;
+  if (!existing) throw httpError(404, 'Question not found');
+
+  const uploaded = await uploadToCloudinary(
+    file.buffer,
+    uniqueFileName(file.originalname),
+    `pbsi/quizzes/${quizId}`,
+    'image',
+    { transformation: [{ width: 1200, crop: 'limit', quality: 'auto' }] },
+  );
+
+  let question;
+  try {
+    [question] = await sql`
+      UPDATE quiz_questions SET image_url = ${uploaded.url}, image_public_id = ${uploaded.public_id}
+      WHERE id = ${questionId} AND quiz_id = ${quizId}
+      RETURNING id, quiz_id, question_text, type, options, correct_answer, points, image_url
+    `;
+  } catch (err) {
+    await deleteFromCloudinary(uploaded.public_id, 'image');
+    throw err;
+  }
+  if (!question) {
+    await deleteFromCloudinary(uploaded.public_id, 'image');
+    throw httpError(404, 'Question not found');
+  }
+
+  const old = existing.image_public_id as string | null;
+  if (old && old !== uploaded.public_id) await deleteFromCloudinary(old, 'image');
+  res.json({ question });
+}
+
+/** DELETE /api/quizzes/:id/questions/:question_id/image */
+export async function removeQuestionImage(req: Request, res: Response): Promise<void> {
+  const user = currentUser(req);
+  const quizId = parseUuid(req.params.id, 'quiz id');
+  const questionId = parseUuid(req.params.question_id, 'question id');
+
+  await assertCanManageQuiz(user, quizId);
+  await assertQuizQuestionsEditable(quizId);
+
+  const [existing] = await sql`
+    SELECT image_public_id FROM quiz_questions WHERE id = ${questionId} AND quiz_id = ${quizId}
+  `;
+  if (!existing) throw httpError(404, 'Question not found');
+
+  const [question] = await sql`
+    UPDATE quiz_questions SET image_url = NULL, image_public_id = NULL
+    WHERE id = ${questionId} AND quiz_id = ${quizId}
+    RETURNING id, quiz_id, question_text, type, options, correct_answer, points, image_url
+  `;
+  if (existing.image_public_id) await deleteFromCloudinary(existing.image_public_id as string, 'image');
+  res.json({ question });
 }

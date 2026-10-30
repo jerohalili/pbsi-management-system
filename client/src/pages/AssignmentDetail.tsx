@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useQueryClient } from 'react-query';
-import { ArrowLeft, ExternalLink, FileText, Pencil, Trash2 } from 'lucide-react';
+import { ArrowLeft, Download, ExternalLink, FileText, Pencil, Trash2 } from 'lucide-react';
 import useAuth from '@/hooks/useAuth.ts';
 import { useGet } from '@/hooks/useApi.ts';
 import api from '@/lib/api.ts';
 import { getErrorMessage } from '@/lib/errors.ts';
 import { formatDateTime } from '@/lib/utils.ts';
+import { FILE_RULES, checkFile, downloadPrivateFile, sendFile } from '@/lib/upload.ts';
+import { FilePicker } from '@/components/common/FilePicker.tsx';
 import { useToast } from '@/components/ui/toast.tsx';
 import { Button } from '@/components/ui/button.tsx';
 import { Badge } from '@/components/ui/badge.tsx';
@@ -28,6 +30,8 @@ interface SubmissionRow {
   last_name: string | null;
   submission_id: string | null;
   file_url: string | null;
+  file_name: string | null;
+  is_file: boolean;
   submitted_at: string | null;
   grade: number | null;
   feedback: string | null;
@@ -51,8 +55,11 @@ export default function AssignmentDetailPage() {
   const [gradeTarget, setGradeTarget] = useState<GradeTarget | null>(null);
   const [deletingAssignment, setDeletingAssignment] = useState(false);
 
-  // Student hand-in form
+  // Student hand-in form: either an uploaded file or a link
+  const [handInMode, setHandInMode] = useState<'file' | 'link'>('file');
   const [link, setLink] = useState('');
+  const [handInFile, setHandInFile] = useState<File | null>(null);
+  const [progress, setProgress] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
 
@@ -112,12 +119,29 @@ export default function AssignmentDetailPage() {
 
   const handIn = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitting(true);
     setSubmitError('');
+    if (handInMode === 'file') {
+      if (!handInFile) {
+        setSubmitError('Choose a file to hand in.');
+        return;
+      }
+      const problem = checkFile(handInFile, FILE_RULES.document);
+      if (problem) {
+        setSubmitError(problem);
+        return;
+      }
+    }
+    setSubmitting(true);
     try {
-      await api.post('/submissions', { assignment_id: assignment.id, file_url: link.trim() });
+      if (handInMode === 'file' && handInFile) {
+        await sendFile('post', '/submissions/file', handInFile, { assignment_id: assignment.id }, setProgress);
+      } else {
+        await api.post('/submissions', { assignment_id: assignment.id, file_url: link.trim() });
+      }
       toast({ title: assignment.submission_id ? 'Submission updated' : 'Submitted', variant: 'success' });
       setLink('');
+      setHandInFile(null);
+      setProgress(0);
       refreshAll();
     } catch (err) {
       setSubmitError(getErrorMessage(err));
@@ -125,6 +149,11 @@ export default function AssignmentDetailPage() {
       setSubmitting(false);
     }
   };
+
+  const download = (endpoint: string) =>
+    downloadPrivateFile(endpoint).catch((err) =>
+      toast({ title: 'Couldn’t download the file', description: getErrorMessage(err), variant: 'destructive' }),
+    );
 
   const confirmDeleteAssignment = async () => {
     await api.delete(`/assignments/${assignment.id}`);
@@ -157,11 +186,22 @@ export default function AssignmentDetailPage() {
             {assignment.instructions && (
               <p className="text-sm max-w-2xl whitespace-pre-wrap break-words">{assignment.instructions}</p>
             )}
-            {isWebUrl(assignment.attachment_url) && (
-              <a href={assignment.attachment_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center text-sm text-primary hover:underline">
-                <FileText className="w-4 h-4 mr-1" /> Open material <ExternalLink className="w-3 h-3 ml-1" />
-              </a>
-            )}
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+              {assignment.has_attachment_file && (
+                <button
+                  type="button"
+                  onClick={() => download(`/assignments/${assignment.id}/attachment`)}
+                  className="inline-flex items-center text-sm text-primary hover:underline"
+                >
+                  <Download className="w-4 h-4 mr-1" /> {assignment.attachment_name ?? 'Download material'}
+                </button>
+              )}
+              {isWebUrl(assignment.attachment_url) && (
+                <a href={assignment.attachment_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center text-sm text-primary hover:underline">
+                  <FileText className="w-4 h-4 mr-1" /> Open material <ExternalLink className="w-3 h-3 ml-1" />
+                </a>
+              )}
+            </div>
           </div>
           {canManage && (
             <div className="flex gap-2 shrink-0">
@@ -189,10 +229,20 @@ export default function AssignmentDetailPage() {
               )}
             </div>
 
-            {isWebUrl(assignment.submission_url) && (
-              <a href={assignment.submission_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center text-sm text-primary hover:underline break-all">
-                {assignment.submission_url} <ExternalLink className="w-3 h-3 ml-1 shrink-0" />
-              </a>
+            {assignment.submission_is_file && assignment.submission_id ? (
+              <button
+                type="button"
+                onClick={() => download(`/submissions/${assignment.submission_id}/download`)}
+                className="inline-flex items-center text-sm text-primary hover:underline break-all text-left"
+              >
+                <Download className="w-4 h-4 mr-1 shrink-0" /> {assignment.submission_file_name ?? 'Your file'}
+              </button>
+            ) : (
+              isWebUrl(assignment.submission_url) && (
+                <a href={assignment.submission_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center text-sm text-primary hover:underline break-all">
+                  {assignment.submission_url} <ExternalLink className="w-3 h-3 ml-1 shrink-0" />
+                </a>
+              )
             )}
 
             {isGraded && (
@@ -207,18 +257,48 @@ export default function AssignmentDetailPage() {
 
             {!isGraded && (
               <form onSubmit={handIn} className="space-y-3">
+                <div className="inline-flex rounded-md border border-input p-0.5 text-sm" role="tablist" aria-label="How to hand in">
+                  {(['file', 'link'] as const).map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      role="tab"
+                      aria-selected={handInMode === m}
+                      onClick={() => setHandInMode(m)}
+                      disabled={submitting}
+                      className={`rounded px-3 py-1 ${handInMode === m ? 'bg-primary text-primary-foreground' : 'hover:bg-accent'}`}
+                    >
+                      {m === 'file' ? 'Upload a file' : 'Paste a link'}
+                    </button>
+                  ))}
+                </div>
                 <div className="space-y-2">
-                  <Label htmlFor="hand-in-link">
-                    {assignment.submission_id ? 'Replace your link' : 'Link to your work'}
-                  </Label>
-                  <Input
-                    id="hand-in-link"
-                    type="url"
-                    required
-                    placeholder="https://docs.google.com/…"
-                    value={link}
-                    onChange={(e) => setLink(e.target.value)}
-                  />
+                  {handInMode === 'file' ? (
+                    <>
+                      <FilePicker
+                        label={assignment.submission_id ? 'Replace your work' : 'Your file'}
+                        rule={FILE_RULES.document}
+                        file={handInFile}
+                        onChange={setHandInFile}
+                        disabled={submitting}
+                      />
+                      {submitting && <p className="text-xs text-muted-foreground">Uploading… {progress}%</p>}
+                    </>
+                  ) : (
+                    <>
+                      <Label htmlFor="hand-in-link">
+                        {assignment.submission_id ? 'Replace your link' : 'Link to your work'}
+                      </Label>
+                      <Input
+                        id="hand-in-link"
+                        type="url"
+                        required
+                        placeholder="https://docs.google.com/…"
+                        value={link}
+                        onChange={(e) => setLink(e.target.value)}
+                      />
+                    </>
+                  )}
                   {pastDue && (
                     <p className="text-xs text-amber-600">
                       This assignment is past due. You can still hand it in, but it will be marked late.
@@ -279,10 +359,20 @@ export default function AssignmentDetailPage() {
                           </TableCell>
                           <TableCell className="text-sm">
                             {r.submitted_at ? formatDateTime(r.submitted_at) : '—'}
-                            {isWebUrl(r.file_url) && (
-                              <a href={r.file_url} target="_blank" rel="noopener noreferrer" className="block text-primary hover:underline text-xs">
-                                Open work
-                              </a>
+                            {r.is_file && r.submission_id ? (
+                              <button
+                                type="button"
+                                onClick={() => download(`/submissions/${r.submission_id}/download`)}
+                                className="block text-primary hover:underline text-xs text-left"
+                              >
+                                Download {r.file_name ?? 'file'}
+                              </button>
+                            ) : (
+                              isWebUrl(r.file_url) && (
+                                <a href={r.file_url} target="_blank" rel="noopener noreferrer" className="block text-primary hover:underline text-xs">
+                                  Open work
+                                </a>
+                              )
                             )}
                           </TableCell>
                           <TableCell className="text-sm">
@@ -299,6 +389,8 @@ export default function AssignmentDetailPage() {
                                     submissionId: r.submission_id as string,
                                     studentName: name,
                                     fileUrl: r.file_url,
+                                    isFile: r.is_file,
+                                    fileName: r.file_name,
                                     maxScore: assignment.max_score,
                                     currentGrade: r.grade,
                                     currentFeedback: r.feedback,

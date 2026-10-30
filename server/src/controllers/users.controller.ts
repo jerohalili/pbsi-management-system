@@ -4,6 +4,8 @@ import { z } from 'zod';
 import { sql } from '../config/db.js';
 import type { AppError } from '../middleware/errorHandler.js';
 import { hashPassword } from '../utils/password.js';
+import { deleteFromCloudinary, deleteManyFromCloudinary } from '../utils/upload.js';
+import { avatarPublicId } from './avatar.controller.js';
 import {
   createUserSchema,
   updateUserSchema,
@@ -503,6 +505,12 @@ export async function deleteUser(req: Request, res: Response): Promise<void> {
   }
 
   const before = await fetchUserDetail(id);
+  // Collected now because the rows (and their file references) are gone after the delete.
+  const submittedFiles = await sql`
+    SELECT file_public_id FROM submissions
+    WHERE file_public_id IS NOT NULL
+      AND student_id IN (SELECT id FROM students WHERE user_id = ${id})
+  `;
 
   try {
     // One transaction: the account and its own records go together, or nothing changes.
@@ -528,6 +536,16 @@ export async function deleteUser(req: Request, res: Response): Promise<void> {
       "This account can't be permanently deleted because other records still reference it. Deactivate it instead.",
     );
   }
+
+  // Best-effort Cloudinary cleanup; a failure here must never undo the deletion.
+  await Promise.allSettled([
+    deleteFromCloudinary(avatarPublicId(id), 'image'),
+    deleteManyFromCloudinary(
+      submittedFiles.map((row) => row.file_public_id as string),
+      'raw',
+      'authenticated',
+    ),
+  ]);
 
   await writeAudit(
     req,

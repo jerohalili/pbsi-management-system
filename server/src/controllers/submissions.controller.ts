@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { sql } from '../config/db.js';
+import { z } from 'zod';
 import { gradeSubmissionSchema, submitAssignmentSchema } from '../utils/validation.js';
 import {
   assertCanManageAssignment,
@@ -9,6 +10,13 @@ import {
   parseUuid,
 } from '../utils/access.js';
 import { schoolYearTerm, toPercent } from '../utils/gradeTerm.js';
+import {
+  deleteFromCloudinary,
+  signedDownloadUrl,
+  uniqueFileName,
+  safeFileName,
+  uploadToCloudinary,
+} from '../utils/upload.js';
 import type { AuthUser } from '../types/index.js';
 
 function currentUser(req: Request): AuthUser {
@@ -32,14 +40,15 @@ export async function listSubmissions(req: Request, res: Response): Promise<void
   const submissions = await sql`
     SELECT st.id AS student_id, st.student_id AS student_number,
            p.first_name, p.last_name,
-           sub.id AS submission_id, sub.file_url, sub.submitted_at,
+           sub.id AS submission_id, sub.file_url, sub.file_name,
+           (sub.file_public_id IS NOT NULL) AS is_file, sub.submitted_at,
            sub.grade::float8 AS grade, sub.feedback, sub.graded_at,
            (sub.id IS NOT NULL AND sub.submitted_at > ${assignment.due_date}::timestamptz) AS is_late
     FROM students st
     JOIN users u ON u.id = st.user_id
     JOIN profiles p ON p.user_id = u.id
     LEFT JOIN LATERAL (
-      SELECT s.id, s.file_url, s.submitted_at, s.grade, s.feedback, s.graded_at
+      SELECT s.id, s.file_url, s.file_name, s.file_public_id, s.submitted_at, s.grade, s.feedback, s.graded_at
       FROM submissions s
       WHERE s.assignment_id = ${assignmentId} AND s.student_id = st.id
       ORDER BY s.submitted_at DESC
@@ -60,13 +69,11 @@ export async function listSubmissions(req: Request, res: Response): Promise<void
   });
 }
 
-/** One submission: its owner, or a teacher/admin who manages the course. */
-export async function getSubmission(req: Request, res: Response): Promise<void> {
-  const user = currentUser(req);
-  const id = parseUuid(req.params.id, 'submission id');
-
+/** Loads one submission after checking the caller may see it: its owner, or the course's teacher/admin. */
+async function loadViewableSubmission(user: AuthUser, id: string) {
   const [submission] = await sql`
-    SELECT s.id, s.assignment_id, s.student_id, s.file_url, s.submitted_at,
+    SELECT s.id, s.assignment_id, s.student_id, s.file_url, s.file_name, s.file_public_id,
+           (s.file_public_id IS NOT NULL) AS is_file, s.submitted_at,
            s.grade::float8 AS grade, s.feedback, s.graded_at,
            (s.submitted_at > a.due_date) AS is_late
     FROM submissions s
@@ -83,16 +90,89 @@ export async function getSubmission(req: Request, res: Response): Promise<void> 
   } else {
     await assertCanManageAssignment(user, submission.assignment_id as string);
   }
+  return submission;
+}
 
+/** One submission: its owner, or a teacher/admin who manages the course. */
+export async function getSubmission(req: Request, res: Response): Promise<void> {
+  const user = currentUser(req);
+  const { file_public_id: _private, ...submission } = await loadViewableSubmission(
+    user,
+    parseUuid(req.params.id, 'submission id'),
+  );
   res.json({ submission });
 }
 
+/** GET /api/submissions/:id/download — a short-lived signed link to the uploaded file. */
+export async function downloadSubmission(req: Request, res: Response): Promise<void> {
+  const user = currentUser(req);
+  const submission = await loadViewableSubmission(user, parseUuid(req.params.id, 'submission id'));
+  if (!submission.file_public_id) throw httpError(404, 'This submission has no uploaded file');
+
+  res.setHeader('Cache-Control', 'no-store');
+  res.json({
+    url: signedDownloadUrl(submission.file_public_id as string, 'raw'),
+    file_name: submission.file_name ?? 'submission',
+  });
+}
+
+interface HandIn {
+  fileUrl: string | null;
+  publicId: string | null;
+  fileName: string | null;
+}
+
 /**
- * A student submits (or resubmits) a link. Resubmitting replaces the previous link until a
- * teacher has graded it; after that the submission is locked.
- *
- * Done as one statement that does not depend on a unique constraint: it updates the student's
- * ungraded submission, or inserts one only if the student has none yet.
+ * Saves a hand-in as one statement that does not depend on a unique constraint: it updates the
+ * student's ungraded submission, or inserts one only if the student has none yet. Returns
+ * undefined when the student's submission was graded in the meantime (and so is locked).
+ */
+async function saveHandIn(assignmentId: string, studentId: string, handIn: HandIn) {
+  const [submission] = await sql`
+    WITH upd AS (
+      UPDATE submissions
+      SET file_url = ${handIn.fileUrl}::text, file_public_id = ${handIn.publicId}::text,
+          file_name = ${handIn.fileName}::text, submitted_at = now()
+      WHERE assignment_id = ${assignmentId}::uuid
+        AND student_id = ${studentId}::uuid
+        AND grade IS NULL
+      RETURNING id, assignment_id, student_id, file_url, file_name, file_public_id, submitted_at, grade, feedback, graded_at
+    ),
+    ins AS (
+      INSERT INTO submissions (assignment_id, student_id, file_url, file_public_id, file_name)
+      SELECT ${assignmentId}::uuid, ${studentId}::uuid, ${handIn.fileUrl}::text,
+             ${handIn.publicId}::text, ${handIn.fileName}::text
+      WHERE NOT EXISTS (
+        SELECT 1 FROM submissions
+        WHERE assignment_id = ${assignmentId}::uuid AND student_id = ${studentId}::uuid
+      )
+      RETURNING id, assignment_id, student_id, file_url, file_name, file_public_id, submitted_at, grade, feedback, graded_at
+    )
+    SELECT r.id, r.assignment_id, r.student_id, r.file_url, r.file_name,
+           (r.file_public_id IS NOT NULL) AS is_file, r.submitted_at,
+           r.grade::float8 AS grade, r.feedback, r.graded_at,
+           (r.submitted_at > a.due_date) AS is_late
+    FROM (SELECT * FROM upd UNION ALL SELECT * FROM ins) r
+    JOIN assignments a ON a.id = r.assignment_id
+  `;
+  return submission;
+}
+
+const LOCKED_MESSAGE = 'This submission has already been graded and can no longer be changed.';
+
+/** The student's current submission for an assignment, if any (used to clean up a replaced file). */
+async function findOwnSubmission(assignmentId: string, studentId: string) {
+  const [existing] = await sql`
+    SELECT id, grade, file_public_id FROM submissions
+    WHERE assignment_id = ${assignmentId} AND student_id = ${studentId}
+    ORDER BY submitted_at DESC LIMIT 1
+  `;
+  return existing as { id: string; grade: number | null; file_public_id: string | null } | undefined;
+}
+
+/**
+ * A student submits (or resubmits) a link. Resubmitting replaces the previous hand-in (link or file)
+ * until a teacher has graded it; after that the submission is locked.
  */
 export async function createSubmission(req: Request, res: Response): Promise<void> {
   const user = currentUser(req);
@@ -107,34 +187,73 @@ export async function createSubmission(req: Request, res: Response): Promise<voi
   const [assignment] = await sql`SELECT id FROM assignments WHERE id = ${input.assignment_id}`;
   if (!assignment) throw httpError(404, 'Assignment not found');
 
-  const [submission] = await sql`
-    WITH upd AS (
-      UPDATE submissions
-      SET file_url = ${input.file_url}::text, submitted_at = now()
-      WHERE assignment_id = ${input.assignment_id}::uuid
-        AND student_id = ${studentId}::uuid
-        AND grade IS NULL
-      RETURNING id, assignment_id, student_id, file_url, submitted_at, grade, feedback, graded_at
-    ),
-    ins AS (
-      INSERT INTO submissions (assignment_id, student_id, file_url)
-      SELECT ${input.assignment_id}::uuid, ${studentId}::uuid, ${input.file_url}::text
-      WHERE NOT EXISTS (
-        SELECT 1 FROM submissions
-        WHERE assignment_id = ${input.assignment_id}::uuid AND student_id = ${studentId}::uuid
-      )
-      RETURNING id, assignment_id, student_id, file_url, submitted_at, grade, feedback, graded_at
-    )
-    SELECT r.id, r.assignment_id, r.student_id, r.file_url, r.submitted_at,
-           r.grade::float8 AS grade, r.feedback, r.graded_at,
-           (r.submitted_at > a.due_date) AS is_late
-    FROM (SELECT * FROM upd UNION ALL SELECT * FROM ins) r
-    JOIN assignments a ON a.id = r.assignment_id
-  `;
+  const previous = await findOwnSubmission(input.assignment_id, studentId);
+  const submission = await saveHandIn(input.assignment_id, studentId, {
+    fileUrl: input.file_url,
+    publicId: null,
+    fileName: null,
+  });
+  if (!submission) throw httpError(409, LOCKED_MESSAGE);
 
-  if (!submission) {
-    throw httpError(409, 'This submission has already been graded and can no longer be changed.');
+  // The link replaced an uploaded file, so that file is no longer needed.
+  if (previous?.file_public_id) await deleteFromCloudinary(previous.file_public_id, 'raw', 'authenticated');
+
+  res.status(201).json({ submission });
+}
+
+const submitFileSchema = z.object({ assignment_id: z.string().uuid('Invalid assignment id') });
+
+/**
+ * POST /api/submissions/file — multipart: `assignment_id` + `file`.
+ * The file is stored privately in Cloudinary; nobody gets a link except through downloadSubmission.
+ */
+export async function createFileSubmission(req: Request, res: Response): Promise<void> {
+  const user = currentUser(req);
+  if (user.role !== 'student') throw httpError(403, 'Only students can submit assignments');
+
+  const { assignment_id: assignmentId } = submitFileSchema.parse(req.body);
+  const file = req.file;
+  if (!file) throw httpError(400, 'Choose a file to upload');
+
+  const studentId = await getOwnStudentId(user.id);
+  if (!studentId) throw httpError(404, 'Student profile not found');
+
+  const [assignment] = await sql`SELECT id FROM assignments WHERE id = ${assignmentId}`;
+  if (!assignment) throw httpError(404, 'Assignment not found');
+
+  // Refuse before uploading anything when the work is already graded.
+  const previous = await findOwnSubmission(assignmentId, studentId);
+  if (previous && previous.grade !== null) throw httpError(409, LOCKED_MESSAGE);
+
+  const uploaded = await uploadToCloudinary(
+    file.buffer,
+    uniqueFileName(file.originalname),
+    `pbsi/submissions/${assignmentId}`,
+    'raw',
+    { type: 'authenticated' },
+  );
+
+  let submission;
+  try {
+    submission = await saveHandIn(assignmentId, studentId, {
+      fileUrl: null,
+      publicId: uploaded.public_id,
+      fileName: safeFileName(file.originalname),
+    });
+  } catch (err) {
+    await deleteFromCloudinary(uploaded.public_id, 'raw', 'authenticated');
+    throw err;
   }
+  if (!submission) {
+    // Graded while the upload was in flight: drop the file we just stored.
+    await deleteFromCloudinary(uploaded.public_id, 'raw', 'authenticated');
+    throw httpError(409, LOCKED_MESSAGE);
+  }
+
+  if (previous?.file_public_id && previous.file_public_id !== uploaded.public_id) {
+    await deleteFromCloudinary(previous.file_public_id, 'raw', 'authenticated');
+  }
+
   res.status(201).json({ submission });
 }
 
@@ -171,7 +290,7 @@ export async function gradeSubmission(req: Request, res: Response): Promise<void
           graded_by = ${user.id},
           graded_at = now()
       WHERE id = ${id}
-      RETURNING id, assignment_id, student_id, file_url, submitted_at, grade, feedback, graded_at
+      RETURNING id, assignment_id, student_id, file_url, file_name, file_public_id, submitted_at, grade, feedback, graded_at
     ),
     upd AS (
       UPDATE grades g
@@ -195,7 +314,8 @@ export async function gradeSubmission(req: Request, res: Response): Promise<void
       )
       RETURNING id
     )
-    SELECT id, assignment_id, student_id, file_url, submitted_at,
+    SELECT id, assignment_id, student_id, file_url, file_name,
+           (file_public_id IS NOT NULL) AS is_file, submitted_at,
            grade::float8 AS grade, feedback, graded_at
     FROM sub
   `;

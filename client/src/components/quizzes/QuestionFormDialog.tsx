@@ -13,6 +13,9 @@ import { Input } from '@/components/ui/input.tsx';
 import { Label } from '@/components/ui/label.tsx';
 import { Textarea } from '@/components/ui/textarea.tsx';
 import api from '@/lib/api.ts';
+import { FILE_RULES, checkFile, sendFile } from '@/lib/upload.ts';
+import { FilePicker } from '@/components/common/FilePicker.tsx';
+import { useToast } from '@/components/ui/toast.tsx';
 import { getErrorMessage } from '@/lib/errors.ts';
 import { QUESTION_TYPE_LABEL, type QuestionType, type QuizQuestion } from './types.ts';
 
@@ -37,8 +40,11 @@ export function QuestionFormDialog({ open, onOpenChange, quizId, question, onSav
   const [trueFalse, setTrueFalse] = useState<'true' | 'false'>('true');
   const [shortAnswer, setShortAnswer] = useState('');
   const [points, setPoints] = useState('1');
+  const [image, setImage] = useState<File | null>(null);
+  const [removeImage, setRemoveImage] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const { toast } = useToast();
 
   const editing = !!question;
 
@@ -54,6 +60,8 @@ export function QuestionFormDialog({ open, onOpenChange, quizId, question, onSav
     setTrueFalse(question?.type === 'true_false' && question.correct_answer === 'false' ? 'false' : 'true');
     setShortAnswer(question?.type === 'short_answer' ? (question.correct_answer ?? '') : '');
     setPoints(String(question?.points ?? 1));
+    setImage(null);
+    setRemoveImage(false);
     setBusy(false);
     setError('');
   }, [open, question]);
@@ -69,6 +77,14 @@ export function QuestionFormDialog({ open, onOpenChange, quizId, question, onSav
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+
+    if (image) {
+      const problem = checkFile(image, FILE_RULES.quizImage);
+      if (problem) {
+        setError(problem);
+        return;
+      }
+    }
 
     const payload: Record<string, unknown> = {
       type,
@@ -92,10 +108,27 @@ export function QuestionFormDialog({ open, onOpenChange, quizId, question, onSav
 
     setBusy(true);
     try {
-      if (question) {
-        await api.patch(`/quizzes/${quizId}/questions/${question.id}`, payload);
-      } else {
-        await api.post(`/quizzes/${quizId}/questions`, payload);
+      const { data } = question
+        ? await api.patch<{ question: { id: string } }>(`/quizzes/${quizId}/questions/${question.id}`, payload)
+        : await api.post<{ question: { id: string } }>(`/quizzes/${quizId}/questions`, payload);
+
+      // The question is saved first; its picture is attached to the saved question.
+      try {
+        if (image) {
+          await sendFile('put', `/quizzes/${quizId}/questions/${data.question.id}/image`, image);
+        } else if (removeImage && question?.image_url) {
+          await api.delete(`/quizzes/${quizId}/questions/${data.question.id}/image`);
+        }
+      } catch (imageErr) {
+        // Do not keep the dialog open: retrying would add the question a second time.
+        onSaved();
+        onOpenChange(false);
+        toast({
+          title: 'Question saved, but the picture wasn’t uploaded',
+          description: `${getErrorMessage(imageErr)} Edit the question to try again.`,
+          variant: 'destructive',
+        });
+        return;
       }
       onSaved();
       onOpenChange(false);
@@ -136,6 +169,30 @@ export function QuestionFormDialog({ open, onOpenChange, quizId, question, onSav
             <Label htmlFor="qq-text">Question</Label>
             <Textarea id="qq-text" rows={3} required value={text} onChange={(e) => setText(e.target.value)} />
           </div>
+
+          {editing && question?.image_url && !image && (
+            <div className="flex items-center gap-3 rounded-md border border-input p-3">
+              <img
+                src={question.image_url}
+                alt="Current question picture"
+                className={`h-16 w-16 rounded object-cover ${removeImage ? 'opacity-40' : ''}`}
+              />
+              <span className="flex-1 text-sm">{removeImage ? 'Picture will be removed' : 'Current picture'}</span>
+              <Button type="button" variant="outline" size="sm" onClick={() => setRemoveImage((v) => !v)} disabled={busy}>
+                {removeImage ? 'Keep' : 'Remove'}
+              </Button>
+            </div>
+          )}
+          <FilePicker
+            label={question?.image_url ? 'Replace picture (optional)' : 'Picture (optional)'}
+            rule={FILE_RULES.quizImage}
+            file={image}
+            onChange={(next) => {
+              setImage(next);
+              if (next) setRemoveImage(false);
+            }}
+            disabled={busy}
+          />
 
           {type === 'mcq' && (
             <fieldset className="space-y-2">

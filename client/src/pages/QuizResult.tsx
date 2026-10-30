@@ -25,6 +25,7 @@ interface AttemptSummary {
 interface QuestionResult {
   question_id: string;
   question_text: string;
+  image_url?: string | null;
   type: QuestionType;
   options: string[] | null;
   points: number;
@@ -115,6 +116,9 @@ export default function QuizResultPage() {
                   </span>
                 </div>
                 <p className="whitespace-pre-wrap break-words">{result.question_text}</p>
+                {result.image_url && (
+                  <img src={result.image_url} alt="Picture for this question" className="max-h-72 w-auto max-w-full rounded-lg border border-input" loading="lazy" />
+                )}
                 <p className="text-sm">
                   <span className="text-muted-foreground">Your answer: </span>
                   {result.your_answer.trim() === '' ? (

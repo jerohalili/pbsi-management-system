@@ -18,9 +18,10 @@ There are three roles. Accounts are created by staff; public sign-up is disabled
 
 - **Users and RBAC**: `verifyToken` + `restrictTo(...roles)` middleware, plus ownership checks (a teacher only manages the courses they teach, a student only sees their own records). Admins can create, edit, deactivate/reactivate, reset passwords for and delete users. Deleting an account: an admin can delete any account (except their own and the last active admin), and a teacher only the students they added (`users.created_by`). A teacher cannot delete a student who has grades, attendance, submissions, quiz attempts or discussion posts; an admin can, after a warning that shows what will be deleted along with the account. Audit entries, courses and records someone else recorded or graded always block deletion (deactivate instead).
 - **Session revocation**: deactivating an account or resetting its password ends that person's sessions immediately (`users.tokens_valid_after`, checked on every request and on token refresh).
+- **Settings** (`/settings`, everyone): change your profile picture, name, phone, date of birth and address, and your password. Email and role stay administrator-managed. Changing the password ends every session, this one included, the same way an admin reset does.
 - **Courses and modules**, with teacher assignment. A module has a title, a rich-text description, an optional video link and an optional file attachment (see *File uploads*).
-- **Assignments and submissions**: students submit, teachers grade with feedback.
-- **Quizzes**: teachers build quizzes and questions; student attempts are graded automatically. Questions are frozen once a student has taken the quiz.
+- **Assignments and submissions**: students hand in a file (stored privately in Cloudinary) or a link; teachers attach one private material file and/or a link, and grade with feedback. Files are only reachable through short-lived signed links, issued after an access check.
+- **Quizzes**: teachers build quizzes and questions; student attempts are graded automatically. Questions are frozen once a student has taken the quiz. A question can carry an optional picture (frozen with the question).
 - **Grades**: written automatically when an assignment is graded or a quiz is submitted. Scores are percentages (0-100). A teacher (own courses) or an admin can adjust a grade; the change is audited and the student is notified. A student's average is calculated live from the `grades` table.
 - **Grade terms**: `grades.term` is the school year label (June starts a new year, Manila time), e.g. `2026` covers June 2026 to May 2027.
 - **Attendance**: teachers and admins load a class roster for a course and date and save it in bulk or one student at a time. There is one record per student, course and day; saving again updates it. Changing an already-recorded status is treated as a correction and audited (`attendance.override`). Students see their own records and a summary.
@@ -31,7 +32,15 @@ There are three roles. Accounts are created by staff; public sign-up is disabled
 
 ### File uploads
 
-Admins and teachers can upload images, videos and files for module content. Files are sent to the API, which forwards them to [Cloudinary](https://cloudinary.com) and returns the URL and `public_id`. The module row stores the result, and the old Cloudinary asset is removed after a module's file is replaced, cleared or the module is deleted. Cloudinary credentials are required at server startup.
+Admins and teachers can upload images, videos and files for module content. Files are sent to the API, which forwards them to [Cloudinary](https://cloudinary.com) and returns the URL and `public_id`. The module row stores the result, and the old Cloudinary asset is removed after a module's file is replaced, cleared or the module is deleted. Cloudinary credentials are required at server startup. Everyone can also upload their own profile picture from Settings; it is stored once at 256×256 and replaced in place.
+
+| What | Who | Stored as | Limit |
+|------|-----|-----------|-------|
+| Assignment submission (a file or a link, never both) | student, for their own work | **private** (`authenticated`); replaced or deleted along with the submission | 10 MB |
+| Assignment material (one file per assignment, next to the optional link) | the course's teacher/admin | **private**; anyone signed in can download it | 10 MB |
+| Quiz question picture | the course's teacher/admin, until a student has taken the quiz | public image (a picture is never an answer) | 5 MB |
+
+Private files are never exposed by URL. `GET /submissions/:id/download` and `GET /assignments/:id/attachment` check who is asking, then return a signed `attachment` link that expires after 5 minutes. A submission can be downloaded by its owner and by the course's teacher or an admin. Deleting an assignment, quiz, question or account also removes the files that belonged to it from Cloudinary (best effort). Allowed document types: PDF, Word, PowerPoint, Excel, OpenDocument, text, CSV, RTF, ZIP, JPG, PNG, WebP. The server refuses to start (with instructions) until `server/sql/cloudinary-uploads.sql` has been run.
 
 ## Tech Stack
 
@@ -111,6 +120,7 @@ Run these by hand in the Neon SQL editor. All are safe to run more than once. Sc
 
 | Script                             | When                                                                     | Notes                                                                                                                                                                        |
 |------------------------------------|--------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `cloudinary-uploads.sql`           | **Before** deploying the upload update (the server checks at startup) | Adds the file columns for submissions, assignment materials and quiz question pictures, and lets `submissions.file_url` be NULL (a file hand-in has no link) |
 | `token-revocation.sql`             | **Before** deploying the current server                                  | Adds `users.tokens_valid_after`; the API reads it on every request                                                                                                           |
 | `users-created-by.sql`             | **Before** deploying the server that lets teachers delete their students | Adds `users.created_by` (who created each account); existing accounts stay `NULL`, so only admins can delete them                                                            |
 | `attendance-unique-index.sql`      | **Before** using attendance                                              | Required. Attendance saves use `ON CONFLICT (student_id, course_id, date)`, which fails without a unique index on exactly those columns. Check for duplicates first          |
@@ -125,14 +135,14 @@ All routes are under `/api` and need a valid session except `/auth/login`, `/aut
 
 | Prefix                           | Notes                                                                                                                      |
 |----------------------------------|----------------------------------------------------------------------------------------------------------------------------|
-| `/auth`                          | `login`, `logout`, `refresh`, `me` (`register` is disabled)                                                                |
+| `/auth`                          | `login`, `logout`, `refresh`, `me`, `PATCH me` (own details), `PUT me/password`, `PUT/DELETE me/avatar` (`register` is disabled) |
 | `/users`                         | List/create/edit, activate/deactivate, reset password, delete (admin/teacher, role-limited)                                |
 | `/students`                      | List (admin/teacher), detail, `export/csv` (admin)                                                                         |
 | `/teachers`                      | List (admin)                                                                                                               |
 | `/courses`, `/modules`           | CRUD scoped to the owning teacher or an admin                                                                              |
 | `/upload`                        | `POST /:kind` (`image`, `video` or `file`; field name `file`) and `DELETE /:publicId`, admin/teacher only; stored in Cloudinary |
-| `/assignments`, `/submissions`   | CRUD and grading                                                                                                           |
-| `/quizzes`, `/quiz-attempts`     | Quiz and question management, student attempts                                                                             |
+| `/assignments`, `/submissions`   | CRUD and grading. Files: `GET/PUT/DELETE /assignments/:id/attachment` (material), `POST /submissions/file` (multipart `assignment_id` + `file`), `GET /submissions/:id/download` |
+| `/quizzes`, `/quiz-attempts`     | Quiz and question management, student attempts; `PUT/DELETE /quizzes/:id/questions/:question_id/image` for question pictures |
 | `/grades`                        | List (scoped by role), `gpa/:student_id` (average percentage; `me` for the signed-in student), `PATCH /:id` adjust a grade |
 | `/attendance`                    | List, `roster` (admin/teacher), `summary/:student_id`, `POST /` (one record) and `POST /bulk` (admin/teacher)              |
 | `/timetable`                     | List, create, update, delete (admin/teacher); double-booking returns 409                                                   |
@@ -147,11 +157,12 @@ All routes are under `/api` and need a valid session except `/auth/login`, `/aut
 - Every request re-checks that the account is active and that the token was issued after `tokens_valid_after`.
 - Zod validation on request bodies; UUID parameters are validated so malformed ids return 400, not a database error.
 - `helmet`, CORS locked to `CORS_ORIGIN`, a 10 kB JSON body limit, and rate limiting (20 login attempts per 15 min, 100 per 15 min on other `/auth` routes, 300 per 15 min overall).
-- Uploads are restricted to admins and teachers.
+- Module uploads are restricted to admins and teachers, and the delete endpoint only touches module media. Profile pictures are the one upload open to everyone, for their own account only (JPG/PNG/WebP, checked by content, stored at `pbsi/avatars/<user id>`).
 - Audit log entries for sensitive admin and grading actions.
 
 ## Known Gaps
 
 - No schema/migration tool or tests yet; schema changes are manual SQL in `server/sql/`.
-- Uploads are buffered in server memory (multer `memoryStorage`, 1 GB cap) before going to Cloudinary, so very large videos can exhaust memory on a small host.
+- Uploads are buffered in server memory (multer `memoryStorage`) before going to Cloudinary, so each kind has a cap: 100 MB for module videos, 10 MB for module images/files, 2 MB for profile pictures. Keep these at or below your Cloudinary plan's per-file limit.
+- Submission and material files are checked by extension and size only (no virus scan). They are never opened inline: downloads are `attachment` links.
 - `DESIGN_SYSTEM.md` documents a different repository (the PBSI marketing site).

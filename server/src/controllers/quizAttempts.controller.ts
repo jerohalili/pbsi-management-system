@@ -113,7 +113,7 @@ export async function getQuizAttempt(req: Request, res: Response): Promise<void>
   }
 
   const questions = await sql`
-    SELECT id, question_text, type, options, correct_answer, points
+    SELECT id, question_text, type, options, correct_answer, points, image_url
     FROM quiz_questions WHERE quiz_id = ${attempt.quiz_id} ORDER BY id ASC
   `;
   const given = (attempt.answers ?? {}) as Record<string, string>;
@@ -128,6 +128,7 @@ export async function getQuizAttempt(req: Request, res: Response): Promise<void>
     return {
       question_id: question.id,
       question_text: question.question_text,
+      image_url: question.image_url,
       type: question.type,
       options: question.options,
       points: question.points,

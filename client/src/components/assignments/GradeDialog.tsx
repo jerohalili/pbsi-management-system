@@ -13,12 +13,16 @@ import { Label } from '@/components/ui/label.tsx';
 import { Textarea } from '@/components/ui/textarea.tsx';
 import api from '@/lib/api.ts';
 import { getErrorMessage } from '@/lib/errors.ts';
+import { downloadPrivateFile } from '@/lib/upload.ts';
 import { isWebUrl } from './types.ts';
 
 export interface GradeTarget {
   submissionId: string;
   studentName: string;
   fileUrl: string | null;
+  /** An uploaded file (opened through a signed link) instead of a link. */
+  isFile: boolean;
+  fileName: string | null;
   maxScore: number;
   currentGrade: number | null;
   currentFeedback: string | null;
@@ -74,12 +78,24 @@ export function GradeDialog({ open, onOpenChange, target, onSaved }: GradeDialog
         <DialogHeader>
           <DialogTitle>Grade {target.studentName}</DialogTitle>
           <DialogDescription>
-            {isWebUrl(target.fileUrl) ? (
+            {target.isFile ? (
+              <button
+                type="button"
+                className="text-primary hover:underline"
+                onClick={() =>
+                  downloadPrivateFile(`/submissions/${target.submissionId}/download`).catch((err) =>
+                    setError(getErrorMessage(err)),
+                  )
+                }
+              >
+                Download {target.fileName ?? 'the submitted file'}
+              </button>
+            ) : isWebUrl(target.fileUrl) ? (
               <a href={target.fileUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
                 Open the submitted work
               </a>
             ) : (
-              'No link was submitted.'
+              'No work was submitted.'
             )}
           </DialogDescription>
         </DialogHeader>

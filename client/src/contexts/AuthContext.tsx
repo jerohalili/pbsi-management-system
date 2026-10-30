@@ -10,7 +10,10 @@ export interface AuthUser {
   role: UserRole;
   first_name?: string;
   last_name?: string;
-  avatar_url?: string;
+  phone?: string | null;
+  date_of_birth?: string | null;
+  address?: string | null;
+  avatar_url?: string | null;
 }
 
 interface AuthContextType {
@@ -19,6 +22,8 @@ interface AuthContextType {
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
+  /** Reloads the signed-in person from the API (for example after changing their picture). */
+  refreshUser: () => Promise<void>;
   hasRole: (roles: UserRole | UserRole[]) => boolean;
 }
 
@@ -80,7 +85,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated: !!user, isLoading, login, logout, hasRole }}>
+    <AuthContext.Provider value={{ user, isAuthenticated: !!user, isLoading, login, logout, refreshUser: loadUser, hasRole }}>
       {children}
     </AuthContext.Provider>
   );

@@ -14,6 +14,14 @@ import {
   parseUuid,
   rethrowDbError,
 } from '../utils/access.js';
+import {
+  deleteFromCloudinary,
+  deleteManyFromCloudinary,
+  safeFileName,
+  signedDownloadUrl,
+  uniqueFileName,
+  uploadToCloudinary,
+} from '../utils/upload.js';
 import type { AuthUser } from '../types/index.js';
 
 function currentUser(req: Request): AuthUser {
@@ -39,13 +47,16 @@ async function queryAssignments(user: AuthUser, filters: AssignmentFilters) {
 
   const rows = await sql`
     SELECT a.id, a.module_id, a.title, a.instructions, a.due_date,
-           a.max_score::float8 AS max_score, a.attachment_url, a.created_at,
+           a.max_score::float8 AS max_score, a.attachment_url, a.attachment_name,
+           (a.attachment_public_id IS NOT NULL) AS has_attachment_file, a.created_at,
            m.title AS module_title,
            c.id AS course_id, c.code AS course_code, c.name AS course_name,
            (te.user_id = ${user.id}) AS is_mine,
            (SELECT COUNT(*) FROM submissions x WHERE x.assignment_id = a.id)::int AS submitted_count,
            (SELECT COUNT(*) FROM submissions x WHERE x.assignment_id = a.id AND x.grade IS NOT NULL)::int AS graded_count,
            sub.id AS submission_id, sub.file_url AS submission_url,
+           sub.file_name AS submission_file_name,
+           (sub.file_public_id IS NOT NULL) AS submission_is_file,
            sub.submitted_at, sub.grade::float8 AS grade, sub.feedback, sub.graded_at,
            (sub.id IS NOT NULL AND sub.submitted_at > a.due_date) AS is_late
     FROM assignments a
@@ -53,7 +64,7 @@ async function queryAssignments(user: AuthUser, filters: AssignmentFilters) {
     JOIN courses c ON c.id = m.course_id
     JOIN teachers te ON te.id = c.teacher_id
     LEFT JOIN LATERAL (
-      SELECT s.id, s.file_url, s.submitted_at, s.grade, s.feedback, s.graded_at
+      SELECT s.id, s.file_url, s.file_name, s.file_public_id, s.submitted_at, s.grade, s.feedback, s.graded_at
       FROM submissions s
       WHERE s.assignment_id = a.id AND s.student_id = ${ownStudentId}::uuid
       ORDER BY s.submitted_at DESC
@@ -168,6 +179,12 @@ export async function deleteAssignment(req: Request, res: Response): Promise<voi
   const user = currentUser(req);
   await assertCanManageAssignment(user, id);
 
+  // Collected now, deleted from Cloudinary only once the rows are really gone.
+  const [material] = await sql`SELECT attachment_public_id FROM assignments WHERE id = ${id}`;
+  const handedIn = await sql`
+    SELECT file_public_id FROM submissions WHERE assignment_id = ${id} AND file_public_id IS NOT NULL
+  `;
+
   // Cascade delete submissions before removing the assignment.
   await sql`DELETE FROM submissions WHERE assignment_id = ${id}`;
   try {
@@ -178,5 +195,80 @@ export async function deleteAssignment(req: Request, res: Response): Promise<voi
       foreignKey: 'Other records still reference this assignment, so it can’t be deleted.',
     });
   }
+  await deleteManyFromCloudinary(
+    [
+      ...handedIn.map((row) => row.file_public_id as string),
+      (material?.attachment_public_id as string | null | undefined) ?? null,
+    ],
+    'raw',
+    'authenticated',
+  );
   res.json({ message: 'Assignment deleted' });
+}
+
+// ---- Teacher material file (one private file per assignment) ------------------------------
+
+/** PUT /api/assignments/:id/attachment — multipart field "file". Replaces any existing material file. */
+export async function setAttachment(req: Request, res: Response): Promise<void> {
+  const user = currentUser(req);
+  const id = parseUuid(req.params.id, 'assignment id');
+  await assertCanManageAssignment(user, id);
+
+  const file = req.file;
+  if (!file) throw httpError(400, 'Choose a file to upload');
+
+  const [existing] = await sql`SELECT attachment_public_id FROM assignments WHERE id = ${id}`;
+  const uploaded = await uploadToCloudinary(
+    file.buffer,
+    uniqueFileName(file.originalname),
+    `pbsi/materials/${id}`,
+    'raw',
+    { type: 'authenticated' },
+  );
+
+  try {
+    await sql`
+      UPDATE assignments
+      SET attachment_public_id = ${uploaded.public_id}, attachment_name = ${safeFileName(file.originalname)}
+      WHERE id = ${id}
+    `;
+  } catch (err) {
+    await deleteFromCloudinary(uploaded.public_id, 'raw', 'authenticated');
+    throw err;
+  }
+
+  const old = existing?.attachment_public_id as string | null | undefined;
+  if (old && old !== uploaded.public_id) await deleteFromCloudinary(old, 'raw', 'authenticated');
+
+  const [assignment] = await queryAssignments(user, { id });
+  res.json({ assignment });
+}
+
+/** DELETE /api/assignments/:id/attachment */
+export async function removeAttachment(req: Request, res: Response): Promise<void> {
+  const user = currentUser(req);
+  const id = parseUuid(req.params.id, 'assignment id');
+  await assertCanManageAssignment(user, id);
+
+  const [existing] = await sql`SELECT attachment_public_id FROM assignments WHERE id = ${id}`;
+  await sql`UPDATE assignments SET attachment_public_id = NULL, attachment_name = NULL WHERE id = ${id}`;
+  const old = existing?.attachment_public_id as string | null | undefined;
+  if (old) await deleteFromCloudinary(old, 'raw', 'authenticated');
+
+  const [assignment] = await queryAssignments(user, { id });
+  res.json({ assignment });
+}
+
+/** GET /api/assignments/:id/attachment — a short-lived signed link, for anyone who can see the assignment. */
+export async function downloadAttachment(req: Request, res: Response): Promise<void> {
+  const id = parseUuid(req.params.id, 'assignment id');
+  const [row] = await sql`SELECT attachment_public_id, attachment_name FROM assignments WHERE id = ${id}`;
+  if (!row) throw httpError(404, 'Assignment not found');
+  if (!row.attachment_public_id) throw httpError(404, 'This assignment has no material file');
+
+  res.setHeader('Cache-Control', 'no-store');
+  res.json({
+    url: signedDownloadUrl(row.attachment_public_id as string, 'raw'),
+    file_name: row.attachment_name ?? 'material',
+  });
 }

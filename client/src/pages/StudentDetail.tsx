@@ -3,7 +3,7 @@ import { useGet } from '@/hooks/useApi.ts';
 import { formatAverage } from '@/lib/utils.ts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card.tsx';
 import { Badge } from '@/components/ui/badge.tsx';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar.tsx';
+import { UserAvatar } from '@/components/common/UserAvatar.tsx';
 import { Phone, MapPin, Calendar, GraduationCap } from 'lucide-react';
 
 interface Student {
@@ -50,11 +50,11 @@ export default function StudentDetailPage() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-3">
-                <Avatar className="h-10 w-10">
-                  <AvatarFallback>
-                    {s.first_name.charAt(0)}{s.last_name.charAt(0)}
-                  </AvatarFallback>
-                </Avatar>
+                <UserAvatar
+                  src={s.avatar_url}
+                  name={`${s.first_name} ${s.last_name}`}
+                  className="h-10 w-10 text-sm"
+                />
                 <div>
                   <div className="font-semibold">{s.first_name} {s.last_name}</div>
                   <div className="text-xs text-muted-foreground">{s.email}</div>

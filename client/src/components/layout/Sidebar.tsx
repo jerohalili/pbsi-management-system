@@ -1,6 +1,7 @@
 import { createContext, useContext, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import useAuth from '@/hooks/useAuth.ts';
+import { UserAvatar } from '@/components/common/UserAvatar.tsx';
 import {
   LayoutDashboard,
   Users,
@@ -17,6 +18,7 @@ import {
   ShieldAlert,
   BookOpen,
   Award,
+  Settings,
 } from 'lucide-react';
 
 const SidebarCollapsedContext = createContext<{
@@ -58,6 +60,7 @@ const navItems: Array<{
   { label: 'Grades', href: '/grades', icon: <Award size={18} />, roles: ['admin', 'teacher', 'student'] },
   { label: 'Discussions', href: '/discussions', icon: <MessageCircle size={18} />, roles: ['admin', 'teacher', 'student'] },
   { label: 'Notifications', href: '/notifications', icon: <Bell size={18} />, roles: ['admin', 'teacher', 'student'] },
+  { label: 'Settings', href: '/settings', icon: <Settings size={18} />, roles: ['admin', 'teacher', 'student'] },
   { label: 'Audit Logs', href: '/audit-logs', icon: <ShieldAlert size={18} />, roles: ['admin'] },
 ];
 
@@ -167,12 +170,21 @@ export function TopNav() {
 
 function AvatarBadge() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   return (
-    <div className="relative inline-block">
-      <span className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-xs font-medium overflow-hidden">
-        {user?.email?.charAt(0).toUpperCase() || '?'}
-      </span>
-    </div>
+    <button
+      type="button"
+      onClick={() => navigate('/settings')}
+      aria-label="Open settings"
+      title="Settings"
+      className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    >
+      <UserAvatar
+        src={user?.avatar_url}
+        name={`${user?.first_name ?? ''} ${user?.last_name ?? ''}`}
+        fallback={user?.email}
+      />
+    </button>
   );
 }
 

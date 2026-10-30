@@ -9,6 +9,9 @@ export interface AssignmentItem {
   due_date: string;
   max_score: number;
   attachment_url: string | null;
+  /** A private material file uploaded by the teacher (separate from the link above). */
+  attachment_name: string | null;
+  has_attachment_file: boolean;
   created_at: string;
   module_title: string;
   course_id: string;
@@ -22,6 +25,9 @@ export interface AssignmentItem {
   /** Only students get their own submission and status. */
   submission_id: string | null;
   submission_url: string | null;
+  /** True when the student handed in an uploaded file instead of a link. */
+  submission_is_file: boolean;
+  submission_file_name: string | null;
   submitted_at: string | null;
   grade: number | null;
   feedback: string | null;
