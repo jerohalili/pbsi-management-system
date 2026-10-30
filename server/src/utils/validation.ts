@@ -318,3 +318,36 @@ export const reorderModulesSchema = z.object({
 
 export type ModuleContentInput = z.infer<typeof moduleContentSchema>;
 export type UpdateModuleContentInput = z.infer<typeof updateModuleContentSchema>;
+
+// Discussions: plain text only (rendered with line breaks, never as HTML).
+const discussionText = (max: number, label: string) =>
+  z.string().trim().min(1, `${label} is required`).max(max, `${label} is too long (max ${max} characters)`);
+
+export const createThreadSchema = z.object({
+  course_id: z.string().uuid('Invalid course id'),
+  title: z.string().trim().min(3, 'Title must be at least 3 characters').max(150, 'Title is too long (max 150 characters)'),
+  body: discussionText(5000, 'The first post'),
+});
+
+export const updateThreadSchema = z
+  .object({
+    title: z.string().trim().min(3, 'Title must be at least 3 characters').max(150, 'Title is too long (max 150 characters)').optional(),
+    body: discussionText(5000, 'The first post').optional(),
+    is_pinned: z.boolean().optional(),
+    is_locked: z.boolean().optional(),
+    answer_reply_id: z.string().uuid('Invalid reply id').nullable().optional(),
+  })
+  .refine((v) => Object.values(v).some((x) => x !== undefined), { message: 'Nothing to update' });
+
+export const createReplySchema = z.object({
+  content: discussionText(3000, 'Reply'),
+  parent_reply_id: z.string().uuid('Invalid reply id').nullish(),
+});
+
+export const updateReplySchema = z.object({
+  content: discussionText(3000, 'Reply'),
+});
+
+export const discussionReportSchema = z.object({
+  reason: z.string().trim().min(3, 'Please say briefly what is wrong').max(500, 'Reason is too long (max 500 characters)'),
+});

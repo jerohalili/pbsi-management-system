@@ -33,6 +33,7 @@ import Attendance from '@/pages/Attendance.tsx';
 import Timetable from '@/pages/Timetable.tsx';
 import Grades from '@/pages/Grades.tsx';
 import Discussions from '@/pages/Discussions.tsx';
+import DiscussionThread from '@/pages/DiscussionThread.tsx';
 import Notifications from '@/pages/Notifications.tsx';
 import AuditLogs from '@/pages/AuditLogs.tsx';
 import Settings from '@/pages/Settings.tsx';
@@ -87,6 +88,7 @@ const App = () => {
           <Route path="timetable" element={<ProtectedRoute><Timetable /></ProtectedRoute>} />
           <Route path="grades" element={<ProtectedRoute><Grades /></ProtectedRoute>} />
           <Route path="discussions" element={<ProtectedRoute><Discussions /></ProtectedRoute>} />
+          <Route path="discussions/:id" element={<ProtectedRoute><DiscussionThread /></ProtectedRoute>} />
           <Route path="notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
           <Route path="settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
           <Route path="audit-logs" element={<ProtectedRoute><AuditLogs /></ProtectedRoute>} />

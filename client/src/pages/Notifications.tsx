@@ -1,5 +1,6 @@
 import useAuth from '@/hooks/useAuth.ts';
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Bell, Clock } from 'lucide-react';
 import api from '@/lib/api.ts';
 import { useToast } from '@/components/ui/toast.tsx';
@@ -86,7 +87,15 @@ export default function NotificationsPage() {
                       <Clock className="w-3 h-3 mr-1" />
                       {new Date(n.created_at).toLocaleString()}
                     </td>
-                    <td className="px-6 py-4 font-medium text-site-text">{n.title}</td>
+                    <td className="px-6 py-4 font-medium text-site-text">
+                      {n.link ? (
+                        <Link to={n.link} className="hover:underline" onClick={() => !n.is_read && markRead(n.id)}>
+                          {n.title}
+                        </Link>
+                      ) : (
+                        n.title
+                      )}
+                    </td>
                     <td className="px-6 py-4 text-sm text-site-muted">{n.message}</td>
                     <td className="px-6 py-4">
                       <span

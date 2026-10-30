@@ -1,114 +1,160 @@
-import useAuth from '@/hooks/useAuth.ts';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { formatDistanceToNow } from 'date-fns';
+import { CheckCircle2, Lock, MessageCircle, Pin, Plus } from 'lucide-react';
+import { useGet } from '@/hooks/useApi.ts';
 import { Button } from '@/components/ui/button.tsx';
-import { Input } from '@/components/ui/input.tsx';
-import { MessageCircle } from 'lucide-react';
-import api from '@/lib/api.ts';
-import { useToast } from '@/components/ui/toast.tsx';
+import { Badge } from '@/components/ui/badge.tsx';
+import { Card } from '@/components/ui/card.tsx';
+import { Skeleton } from '@/components/ui/skeleton.tsx';
+import { AuthorLine } from '@/components/discussions/AuthorLine.tsx';
+import { NewThreadDialog } from '@/components/discussions/NewThreadDialog.tsx';
+import type { ThreadSummary } from '@/components/discussions/types.ts';
 
-interface Thread {
+interface CourseOption {
   id: string;
-  course_id: string;
-  title: string;
-  author_id: string;
-  created_at: string;
-  first_name: string;
-  last_name: string;
-  reply_count: number;
+  code: string;
+  name: string;
 }
 
+const selectClass =
+  'flex h-10 items-center rounded-md border border-input bg-field px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring';
+
 export default function DiscussionsPage() {
-  const { isAuthenticated, isLoading } = useAuth();
-  const { toast } = useToast();
-  const [title, setTitle] = useState('');
-  const [threads, setThreads] = useState<Thread[]>([]);
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [creating, setCreating] = useState(false);
 
-  useEffect(() => {
-    if (!isAuthenticated) return;
-    fetchThreads();
-  }, [isAuthenticated]);
+  const {
+    data: courseData,
+    isLoading: loadingCourses,
+    isError: coursesFailed,
+    refetch: refetchCourses,
+  } = useGet<{ courses: CourseOption[] }>(['courses'], '/courses');
+  const courses = courseData?.courses ?? [];
 
-  async function fetchThreads() {
-    try {
-      const res = await api.get<{ threads: Thread[] }>('/discussions/course-demo');
-      setThreads(res.data.threads);
-    } catch (err: any) {
-      toast({ title: 'Failed to load discussions', description: err.message, variant: 'destructive' });
-    }
-  }
+  // The course lives in the address (?course=…), so a discussion list can be shared and survives a refresh.
+  const requested = searchParams.get('course') ?? '';
+  const course = courses.find((c) => c.id === requested) ?? courses[0];
+  const courseId = course?.id ?? '';
 
-  async function handleCreate(e: React.FormEvent) {
-    e.preventDefault();
-    if (!title.trim()) return;
-    try {
-      await api.post('/discussions', { course_id: 'demo', title });
-      setTitle('');
-      fetchThreads();
-    } catch (err: any) {
-      toast({ title: 'Failed to create discussion', description: err.message, variant: 'destructive' });
-    }
-  }
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen w-full bg-site-bg flex items-center justify-center px-4">
-        <div className="flex flex-col items-center gap-2 animate-pulse">
-          <div className="w-10 h-10 rounded-full bg-site-border"></div>
-          <p className="text-site-muted text-sm">Loading…</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!isAuthenticated) return null;
+  const { data, isLoading, isError, refetch } = useGet<{ threads: ThreadSummary[] }>(
+    ['discussions', 'course', courseId],
+    `/discussions/${courseId}`,
+    { enabled: courseId !== '', keepPreviousData: true },
+  );
+  const threads = data?.threads ?? [];
 
   return (
-    <div className="min-h-screen w-full bg-site-bg px-4 py-12">
-      <div className="max-w-5xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold text-site-text">Course Discussions</h1>
-          <p className="text-site-muted">Ask questions and collaborate with classmates.</p>
+    <div className="space-y-6">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold">Discussions</h1>
+          <p className="text-muted-foreground">Ask questions, share ideas and help each other learn.</p>
         </div>
-
-        <form onSubmit={handleCreate} className="flex gap-2 mb-8">
-          <Input
-            placeholder="Start a new discussion..."
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            className="flex-1"
-          />
-          <Button type="submit" className="bg-primary text-white hover:bg-blue-700 px-6 py-2">
-            Post
+        <div className="flex items-center gap-2">
+          <select
+            className={selectClass}
+            value={courseId}
+            onChange={(e) => setSearchParams({ course: e.target.value })}
+            aria-label="Course"
+            disabled={courses.length === 0}
+          >
+            {courses.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.code} · {c.name}
+              </option>
+            ))}
+          </select>
+          <Button onClick={() => setCreating(true)} disabled={!courseId}>
+            <Plus className="w-4 h-4 mr-2" /> New discussion
           </Button>
-        </form>
+        </div>
+      </div>
 
-        {threads.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-center">
-            <MessageCircle className="w-16 h-16 text-site-muted/30 mb-4" />
-            <h3 className="font-bold text-site-text mb-2">No discussions yet</h3>
-            <p className="text-site-muted">Be the first to start one!</p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {threads.map((t) => (
-              <div key={t.id} className="rounded-xl border border-site-border bg-site-card p-6">
-                <div className="flex flex-row items-center justify-between space-y-0 pb-2 mb-2">
-                  <h3 className="font-bold text-site-text">{t.title}</h3>
-                  <div className="text-xs text-site-muted">
-                    {new Date(t.created_at).toLocaleDateString()}
+      {loadingCourses || (courseId !== '' && isLoading) ? (
+        <div className="space-y-3">
+          {[0, 1, 2].map((i) => (
+            <Skeleton key={i} className="h-24 w-full" />
+          ))}
+        </div>
+      ) : coursesFailed || isError ? (
+        <Card className="p-6 flex items-center justify-between gap-4">
+          <p className="text-sm text-muted-foreground">Couldn’t load discussions.</p>
+          <Button variant="outline" size="sm" onClick={() => (coursesFailed ? refetchCourses() : refetch())}>
+            Retry
+          </Button>
+        </Card>
+      ) : courses.length === 0 ? (
+        <Card className="p-10 text-center text-muted-foreground">
+          <MessageCircle className="w-8 h-8 mx-auto mb-3 opacity-60" />
+          <p>There are no courses yet, so there is nothing to discuss.</p>
+        </Card>
+      ) : threads.length === 0 ? (
+        <Card className="p-10 text-center text-muted-foreground">
+          <MessageCircle className="w-8 h-8 mx-auto mb-3 opacity-60" />
+          <p className="font-medium text-foreground">No discussions in this course yet</p>
+          <p className="text-sm mt-1">Got a question? Someone else is probably wondering the same thing.</p>
+        </Card>
+      ) : (
+        <ul className="space-y-3">
+          {threads.map((t) => (
+            <li key={t.id}>
+              <Card className="p-4 space-y-2 transition-colors hover:border-primary">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 space-y-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {t.is_pinned && (
+                        <Badge variant="outline">
+                          <Pin className="w-3 h-3 mr-1" /> Pinned
+                        </Badge>
+                      )}
+                      {t.is_answered && (
+                        <Badge variant="success">
+                          <CheckCircle2 className="w-3 h-3 mr-1" /> Answered
+                        </Badge>
+                      )}
+                      {t.is_locked && (
+                        <Badge variant="secondary">
+                          <Lock className="w-3 h-3 mr-1" /> Locked
+                        </Badge>
+                      )}
+                    </div>
+                    <Link to={`/discussions/${t.id}`} className="block font-semibold hover:underline break-words">
+                      {t.title}
+                    </Link>
+                    {t.preview && (
+                      <p className="text-sm text-muted-foreground line-clamp-2 break-words">{t.preview}</p>
+                    )}
+                  </div>
+                  <div className="shrink-0 text-right text-sm text-muted-foreground">
+                    <div className="flex items-center justify-end gap-1">
+                      <MessageCircle className="w-4 h-4" />
+                      <span>{t.reply_count}</span>
+                    </div>
+                    <div className="text-xs">
+                      {t.reply_count > 0
+                        ? `active ${formatDistanceToNow(new Date(t.last_activity_at), { addSuffix: true })}`
+                        : 'no replies'}
+                    </div>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 text-xs text-site-muted">
-                  <MessageCircle className="w-3 h-3" />
-                  <span>{t.first_name} {t.last_name}</span>
-                  <span className="mx-1">·</span>
-                  <span>{t.reply_count} replies</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+                <AuthorLine person={t} createdAt={t.created_at} editedAt={t.edited_at} />
+              </Card>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {course && (
+        <NewThreadDialog
+          open={creating}
+          onOpenChange={setCreating}
+          courseId={course.id}
+          courseLabel={`${course.code} · ${course.name}`}
+          onCreated={(id) => navigate(`/discussions/${id}`)}
+        />
+      )}
     </div>
   );
 }

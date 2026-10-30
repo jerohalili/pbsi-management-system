@@ -12,6 +12,7 @@ import {
   ChevronsUpDown,
   ClipboardList,
   HelpCircle,
+  MessageCircle,
   Pencil,
   Plus,
   Trash2,
@@ -272,20 +273,23 @@ export default function CourseDetailPage() {
             </p>
             {course.description && <p className="text-sm max-w-2xl whitespace-pre-wrap">{course.description}</p>}
           </div>
-          {(canEdit || isAdmin) && (
-            <div className="flex gap-2 shrink-0">
-              {canEdit && (
-                <Button onClick={() => setEditingCourse(true)}>
-                  <Pencil className="w-4 h-4 mr-2" /> Edit course
-                </Button>
-              )}
-              {canEdit && (
-                <Button variant="destructive" onClick={deleteCourse}>
-                  <Trash2 className="w-4 h-4 mr-2" /> Delete
-                </Button>
-              )}
-            </div>
-          )}
+          <div className="flex gap-2 shrink-0">
+            <Button variant="outline" asChild>
+              <Link to={`/discussions?course=${course.id}`}>
+                <MessageCircle className="w-4 h-4 mr-2" /> Discussions
+              </Link>
+            </Button>
+            {canEdit && (
+              <Button onClick={() => setEditingCourse(true)}>
+                <Pencil className="w-4 h-4 mr-2" /> Edit course
+              </Button>
+            )}
+            {canEdit && (
+              <Button variant="destructive" onClick={deleteCourse}>
+                <Trash2 className="w-4 h-4 mr-2" /> Delete
+              </Button>
+            )}
+          </div>
         </div>
       </div>
 
