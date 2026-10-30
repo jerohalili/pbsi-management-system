@@ -3,7 +3,7 @@ import {
   Routes,
   Route,
   Outlet,
-  useNavigate,
+  Navigate,
   useLocation,
 } from 'react-router-dom';
 import useAuth from '@/hooks/useAuth.ts';
@@ -53,13 +53,11 @@ function RoleLayout({ children }: { children?: React.ReactNode }) {
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, isAuthenticated, isLoading } = useAuth();
-  const navigate = useNavigate();
   const location = useLocation();
 
   if (isLoading) return <div className="min-h-screen flex items-center justify-center">Loading…</div>;
   if (!user || !isAuthenticated) {
-    navigate('/login', { state: { from: location }, replace: true });
-    return <div className="min-h-screen flex items-center justify-center">Redirecting…</div>;
+    return <Navigate to="/login" state={{ from: location }} replace />;
   }
   return <>{children}</>;
 }
