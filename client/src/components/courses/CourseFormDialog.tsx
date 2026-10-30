@@ -43,7 +43,7 @@ interface CourseFormDialogProps {
 }
 
 const selectClass =
-  'flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring';
+  'flex h-10 w-full rounded-md border border-input bg-field px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring';
 
 export function CourseFormDialog({
   open,

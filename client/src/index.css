@@ -24,9 +24,12 @@
     --input: 230 11% 95%;
     --ring: 221 100% 31%;
     --radius: 1rem;
+    /* Form fields: white on the grey page and in dialogs. Cards (white) switch it to grey. */
+    --field: var(--card);
   }
 
   .dark {
+    --field: var(--card);
     --background: 222.2 84.2% 4.9%;
     --foreground: 210 40% 98%;
     --card: 217.2 32.6% 17.5%;

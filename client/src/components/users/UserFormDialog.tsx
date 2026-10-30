@@ -196,7 +196,7 @@ export function UserFormDialog({
                   id="uf-role"
                   value={form.role}
                   onChange={(e) => set('role', e.target.value as ManagedRole)}
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  className="flex h-10 w-full rounded-md border border-input bg-field px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                 >
                   {allowedRoles.map((r) => (
                     <option key={r} value={r}>

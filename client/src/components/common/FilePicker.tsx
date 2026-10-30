@@ -12,7 +12,10 @@ interface FilePickerProps {
   disabled?: boolean;
 }
 
-/** One file input with its allowed types, the chosen file, and a clear button. */
+/**
+ * One file input. The browser's own "Choose file" button can't be themed, so the real input is
+ * hidden and the app's Button opens it. The label still points at the input for screen readers.
+ */
 export function FilePicker({ label, rule, file, onChange, disabled }: FilePickerProps) {
   const id = useId();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -31,21 +34,45 @@ export function FilePicker({ label, rule, file, onChange, disabled }: FilePicker
         type="file"
         accept={rule.accept}
         disabled={disabled}
+        tabIndex={-1}
+        className="sr-only"
+        // Let the same file be picked again after it was cleared.
+        onClick={(e) => {
+          e.currentTarget.value = '';
+        }}
         onChange={(e) => onChange(e.target.files?.[0] ?? null)}
-        className="block w-full text-sm file:mr-3 file:rounded-md file:border file:border-input file:bg-background file:px-3 file:py-2 file:text-sm file:font-medium hover:file:bg-accent disabled:opacity-50"
       />
-      {file ? (
-        <div className="flex items-center gap-2 text-sm">
-          <FileUp className="h-4 w-4 shrink-0 text-muted-foreground" />
-          <span className="min-w-0 truncate">{file.name}</span>
-          <span className="shrink-0 text-xs text-muted-foreground">{formatBytes(file.size)}</span>
-          <Button type="button" variant="ghost" size="icon" aria-label="Remove chosen file" onClick={clear} disabled={disabled}>
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
-      ) : (
-        <p className="text-xs text-muted-foreground">{rule.hint}</p>
-      )}
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          type="button"
+          variant="default"
+          className="h-10 px-4"
+          disabled={disabled}
+          onClick={() => inputRef.current?.click()}
+        >
+          <FileUp className="mr-2 h-4 w-4" />
+          {file ? 'Change file' : 'Choose file'}
+        </Button>
+        {file ? (
+          <>
+            <span className="min-w-0 max-w-full truncate text-sm">{file.name}</span>
+            <span className="shrink-0 text-xs text-muted-foreground">{formatBytes(file.size)}</span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              aria-label="Remove chosen file"
+              onClick={clear}
+              disabled={disabled}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </>
+        ) : (
+          <span className="text-sm text-muted-foreground">No file chosen</span>
+        )}
+      </div>
+      {!file && <p className="text-xs text-muted-foreground">{rule.hint}</p>}
     </div>
   );
 }
