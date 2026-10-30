@@ -1,3 +1,6 @@
+/** Grade (percent) at or above which a student passes (DepEd passing mark). */
+export const PASSING_GRADE = 75;
+
 const SCHOOL_TIMEZONE = 'Asia/Manila';
 /** Philippine school years start in June, so January-May still belongs to the previous year's term. */
 const SCHOOL_YEAR_START_MONTH = 6;
