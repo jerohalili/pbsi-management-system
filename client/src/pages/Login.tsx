@@ -5,7 +5,22 @@ import { useToast } from '@/components/ui/toast.tsx';
 import { Button } from '@/components/ui/button.tsx';
 import { Input } from '@/components/ui/input.tsx';
 import { Label } from '@/components/ui/label.tsx';
-import { Mail, Lock } from 'lucide-react';
+import { Mail, Lock, AlertCircle } from 'lucide-react';
+
+/** Turns a failed login request into a short message that says what happened and what to do. */
+function getLoginErrorMessage(err: any): string {
+  // No response at all: the server is unreachable, still waking up, or the request was blocked.
+  if (!err?.response) {
+    return "Can't reach the server. It may be waking up, so wait a minute and try again.";
+  }
+  const status: number = err.response.status;
+  if (status === 400) return 'Enter your email address and password.';
+  if (status === 401) return 'Incorrect email or password.';
+  if (status === 403) return 'This account is deactivated. Contact your administrator.';
+  if (status === 429) return 'Too many attempts. Wait a few minutes, then try again.';
+  if (status >= 500) return 'Something went wrong on our side. Please try again.';
+  return err.response.data?.error || 'Sign in failed. Please try again.';
+}
 
 export default function Login() {
   const { login } = useAuth();
@@ -14,16 +29,18 @@ export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorMessage('');
     setLoading(true);
     try {
       await login(email, password);
       toast({ title: 'Welcome back', description: 'You are signed in.', variant: 'success' });
       navigate('/');
     } catch (err: any) {
-      toast({ title: 'Login failed', description: err?.response?.data?.error || err.message, variant: 'destructive' });
+      setErrorMessage(getLoginErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -48,10 +65,15 @@ export default function Login() {
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-site-muted" />
                 <Input
                   id="email"
+                  name="email"
                   type="email"
+                  autoComplete="username"
                   placeholder="name@school.edu"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    setErrorMessage('');
+                  }}
                   className="pl-10"
                 />
               </div>
@@ -62,13 +84,27 @@ export default function Login() {
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-site-muted" />
                 <Input
                   id="password"
+                  name="password"
                   type="password"
+                  autoComplete="current-password"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    setErrorMessage('');
+                  }}
                   className="pl-10"
                 />
               </div>
             </div>
+            {errorMessage && (
+              <div
+                role="alert"
+                className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+              >
+                <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                <span>{errorMessage}</span>
+              </div>
+            )}
             <Button
               type="submit"
               className="w-full !bg-primary text-white border-transparent px-8 py-4 rounded-2xl font-bold text-base disabled:opacity-70 transition-all duration-300 hover:!bg-blue-700 hover:border-transparent hover:text-white active:scale-95"
