@@ -2,7 +2,7 @@
 
 A zero-cost school management system built with the PERN stack (PostgreSQL, Express, React, Node). Administrators, teachers and students each get their own role-based dashboard for courses, modules, assignments, auto-graded quizzes, grades, attendance, timetables, discussions and notifications.
 
-Live app: [https://pbsi-platform.vercel.app/](https://pbsi-platform.vercel.app/)
+Live app: [https://pbsi-platform.vercel.app](https://pbsi-platform.vercel.app)
 
 ## Roles
 
