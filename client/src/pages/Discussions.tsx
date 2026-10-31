@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { formatDistanceToNow } from 'date-fns';
-import { CheckCircle2, Lock, MessageCircle, Pin, Plus } from 'lucide-react';
+import { ArrowRight, CheckCircle2, Lock, MessageCircle, Pin, Plus } from 'lucide-react';
 import { useGet } from '@/hooks/useApi.ts';
 import { Button } from '@/components/ui/button.tsx';
 import { Badge } from '@/components/ui/badge.tsx';
@@ -100,7 +100,7 @@ export default function DiscussionsPage() {
         <ul className="space-y-3">
           {threads.map((t) => (
             <li key={t.id}>
-              <Card className="relative p-4 space-y-2 transition-colors hover:border-primary">
+              <Card className="p-4 space-y-2">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 space-y-1">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -120,12 +120,7 @@ export default function DiscussionsPage() {
                         </Badge>
                       )}
                     </div>
-                    <Link
-                      to={`/discussions/${t.id}`}
-                      className="block font-semibold hover:underline break-words after:absolute after:inset-0 after:content-['']"
-                    >
-                      {t.title}
-                    </Link>
+                    <h2 className="font-semibold break-words">{t.title}</h2>
                     {t.preview && (
                       <p className="text-sm text-muted-foreground line-clamp-2 break-words">{t.preview}</p>
                     )}
@@ -140,6 +135,11 @@ export default function DiscussionsPage() {
                         ? `active ${formatDistanceToNow(new Date(t.last_activity_at), { addSuffix: true })}`
                         : 'no replies'}
                     </div>
+                    <Button asChild size="sm" className="mt-2" aria-label={`Open discussion ${t.title}`}>
+                      <Link to={`/discussions/${t.id}`}>
+                        Open <ArrowRight className="w-4 h-4 ml-2" />
+                      </Link>
+                    </Button>
                   </div>
                 </div>
                 <AuthorLine person={t} createdAt={t.created_at} editedAt={t.edited_at} />
