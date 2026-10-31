@@ -100,7 +100,7 @@ export default function DiscussionsPage() {
         <ul className="space-y-3">
           {threads.map((t) => (
             <li key={t.id}>
-              <Card className="p-4 space-y-2 transition-colors hover:border-primary">
+              <Card className="relative p-4 space-y-2 transition-colors hover:border-primary">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 space-y-1">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -120,7 +120,10 @@ export default function DiscussionsPage() {
                         </Badge>
                       )}
                     </div>
-                    <Link to={`/discussions/${t.id}`} className="block font-semibold hover:underline break-words">
+                    <Link
+                      to={`/discussions/${t.id}`}
+                      className="block font-semibold hover:underline break-words after:absolute after:inset-0 after:content-['']"
+                    >
                       {t.title}
                     </Link>
                     {t.preview && (
