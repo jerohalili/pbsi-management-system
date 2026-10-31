@@ -16,6 +16,8 @@ import {
   parseUuid,
 } from '../utils/access.js';
 import { newTimeOrderedUuid } from '../utils/ids.js';
+import { recordAudit, diffValues } from '../utils/audit.js';
+import { notifyAllStudents } from '../utils/notify.js';
 import {
   deleteFromCloudinary,
   deleteManyFromCloudinary,
@@ -129,6 +131,11 @@ export async function createQuiz(req: Request, res: Response): Promise<void> {
     VALUES (${input.course_id}, ${input.title}, ${input.time_limit_minutes ?? null}, FALSE)
     RETURNING id
   `;
+  await recordAudit(req, 'quiz.create', 'quiz', created.id as string, null, {
+    title: input.title,
+    course_id: input.course_id,
+    time_limit_minutes: input.time_limit_minutes ?? null,
+  });
   const [quiz] = await queryQuizzes(user, { id: created.id as string });
   res.status(201).json({ quiz });
 }
@@ -138,7 +145,7 @@ export async function updateQuiz(req: Request, res: Response): Promise<void> {
   const id = parseUuid(req.params.id, 'quiz id');
   const input = updateQuizSchema.parse(req.body);
 
-  await assertCanManageQuiz(user, id);
+  const before = await assertCanManageQuiz(user, id);
 
   if (input.is_published === true) {
     const [row] = await sql`SELECT COUNT(*)::int AS n FROM quiz_questions WHERE quiz_id = ${id}`;
@@ -156,6 +163,31 @@ export async function updateQuiz(req: Request, res: Response): Promise<void> {
     WHERE id = ${id}
   `;
 
+  const changes = diffValues(
+    { title: before.title, is_published: before.is_published, time_limit_minutes: before.time_limit_minutes },
+    {
+      title: input.title,
+      is_published: input.is_published,
+      time_limit_minutes: timeProvided ? (input.time_limit_minutes ?? null) : undefined,
+    },
+  );
+  if (changes) await recordAudit(req, 'quiz.update', 'quiz', id, changes.old, changes.new);
+
+  // A quiz that has just been opened is news for students (not every later edit of it).
+  if (before.is_published === false && input.is_published === true) {
+    try {
+      const [course] = await sql`SELECT code FROM courses WHERE id = ${before.course_id}`;
+      await notifyAllStudents({
+        type: 'quiz',
+        title: 'Quiz available',
+        message: `${input.title ?? before.title}${course?.code ? ` (${course.code})` : ''} is now open`,
+        link: `/quizzes/${id}`,
+      });
+    } catch (err) {
+      console.error('[quizzes] could not notify students:', err);
+    }
+  }
+
   const [quiz] = await queryQuizzes(user, { id });
   res.json({ quiz });
 }
@@ -163,7 +195,7 @@ export async function updateQuiz(req: Request, res: Response): Promise<void> {
 export async function deleteQuiz(req: Request, res: Response): Promise<void> {
   const id = parseUuid(req.params.id, 'quiz id');
   const user = currentUser(req);
-  await assertCanManageQuiz(user, id);
+  const before = await assertCanManageQuiz(user, id);
 
   const pictures = await sql`
     SELECT image_public_id FROM quiz_questions WHERE quiz_id = ${id} AND image_public_id IS NOT NULL
@@ -174,6 +206,7 @@ export async function deleteQuiz(req: Request, res: Response): Promise<void> {
   const [quiz] = await sql`DELETE FROM quizzes WHERE id = ${id} RETURNING id`;
   if (!quiz) throw httpError(404, 'Quiz not found');
   await deleteManyFromCloudinary(pictures.map((row) => row.image_public_id as string), 'image');
+  await recordAudit(req, 'quiz.delete', 'quiz', id, { title: before.title, course_id: before.course_id }, null);
   res.json({ message: 'Quiz deleted' });
 }
 

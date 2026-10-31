@@ -1,6 +1,7 @@
 import { createContext, useContext, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import useAuth from '@/hooks/useAuth.ts';
+import useUnreadNotifications from '@/hooks/useUnreadNotifications.ts';
 import { UserAvatar } from '@/components/common/UserAvatar.tsx';
 import {
   LayoutDashboard,
@@ -69,6 +70,7 @@ export function Sidebar() {
   const { collapsed, setCollapsed } = useSidebarCollapsed();
   const navigate = useNavigate();
   const location = useLocation();
+  const unread = useUnreadNotifications(Boolean(user));
 
   const items = navItems.filter((i) => i.roles.includes(user?.role as any));
 
@@ -109,11 +111,13 @@ export function Sidebar() {
       <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
         {items.map((item) => {
           const isActive = location.pathname === item.href;
+          const badge = item.href === '/notifications' ? unread : 0;
           return (
             <button
               key={item.href}
               onClick={() => navigate(item.href)}
-              className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+              aria-label={badge > 0 ? `${item.label}, ${badge} unread` : item.label}
+              className={`relative flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
                 isActive
                   ? 'bg-primary text-primary-foreground'
                   : 'text-foreground hover:bg-accent'
@@ -122,6 +126,17 @@ export function Sidebar() {
             >
               <span className={collapsed ? 'w-6' : 'w-5 h-5'}>{item.icon}</span>
               {!collapsed && <span>{item.label}</span>}
+              {badge > 0 && (
+                <span
+                  className={
+                    collapsed
+                      ? 'absolute right-1 top-1 h-2.5 w-2.5 rounded-full bg-destructive'
+                      : 'ml-auto min-w-5 rounded-full bg-destructive px-1.5 py-0.5 text-center text-xs font-semibold leading-none text-destructive-foreground'
+                  }
+                >
+                  {!collapsed && (badge > 99 ? '99+' : badge)}
+                </span>
+              )}
             </button>
           );
         })}

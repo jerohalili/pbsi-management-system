@@ -9,6 +9,7 @@ import {
   rethrowDbError,
 } from '../utils/access.js';
 import type { AuthUser } from '../types/index.js';
+import { recordAudit, diffValues } from '../utils/audit.js';
 
 function currentUser(req: Request): AuthUser {
   if (!req.user) throw httpError(401, 'Not authenticated');
@@ -89,6 +90,11 @@ export async function createCourse(req: Request, res: Response): Promise<void> {
       VALUES (${input.code}, ${input.name}, ${input.description || null}, ${input.credits}, ${teacherId})
       RETURNING id
     `;
+    await recordAudit(req, 'course.create', 'course', created.id as string, null, {
+      code: input.code,
+      name: input.name,
+      teacher_id: teacherId,
+    });
     res.status(201).json({ course: await fetchCourse(created.id as string, user.id) });
   } catch (err) {
     rethrowDbError(err, { unique: 'A course with this code already exists' });
@@ -109,6 +115,9 @@ export async function updateCourse(req: Request, res: Response): Promise<void> {
   }
 
   const descriptionProvided = input.description !== undefined;
+  const [before] = await sql`
+    SELECT code, name, description, credits, teacher_id FROM courses WHERE id = ${id}
+  `;
 
   try {
     await sql`
@@ -124,6 +133,17 @@ export async function updateCourse(req: Request, res: Response): Promise<void> {
     rethrowDbError(err, { unique: 'A course with this code already exists' });
   }
 
+  if (before) {
+    const changes = diffValues(before, {
+      code: input.code,
+      name: input.name,
+      description: descriptionProvided ? input.description || null : undefined,
+      credits: input.credits,
+      teacher_id: input.teacher_id,
+    });
+    if (changes) await recordAudit(req, 'course.update', 'course', id, changes.old, changes.new);
+  }
+
   res.json({ course: await fetchCourse(id, user.id) });
 }
 
@@ -131,6 +151,7 @@ export async function deleteCourse(req: Request, res: Response): Promise<void> {
   const id = parseUuid(req.params.id, 'course id');
   const user = currentUser(req);
   await assertCanManageCourse(user, id);
+  const [before] = await sql`SELECT code, name FROM courses WHERE id = ${id}`;
 
   // Cascade delete all related content before removing the course.
   await sql`DELETE FROM timetable WHERE course_id = ${id}`;
@@ -143,5 +164,6 @@ export async function deleteCourse(req: Request, res: Response): Promise<void> {
 
   const [course] = await sql`DELETE FROM courses WHERE id = ${id} RETURNING id`;
   if (!course) throw httpError(404, 'Course not found');
+  await recordAudit(req, 'course.delete', 'course', id, before ? { code: before.code, name: before.name } : null, null);
   res.json({ message: 'Course deleted' });
 }

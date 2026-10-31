@@ -9,6 +9,7 @@ import {
 } from '../utils/validation.js';
 import { httpError, parseUuid } from '../utils/access.js';
 import { recordAudit } from '../utils/audit.js';
+import { notifyUsers } from '../utils/notify.js';
 import type { AuthUser } from '../types/index.js';
 
 function currentUser(req: Request): AuthUser {
@@ -90,19 +91,8 @@ async function displayName(userId: string): Promise<string> {
 }
 
 /** Best effort: a notification problem must never undo or block a post. */
-async function notify(userIds: Iterable<string>, title: string, message: string, link: string): Promise<void> {
-  try {
-    await Promise.all(
-      [...new Set(userIds)].map(
-        (userId) => sql`
-          INSERT INTO notifications (user_id, type, title, message, link)
-          VALUES (${userId}, 'discussion', ${title}, ${message}, ${link})
-        `,
-      ),
-    );
-  } catch (err) {
-    console.error('[discussions] could not create notification:', err);
-  }
+function notify(userIds: Iterable<string>, title: string, message: string, link: string): Promise<void> {
+  return notifyUsers(userIds, { type: 'discussion', title, message, link });
 }
 
 function shorten(text: string, max = 80): string {

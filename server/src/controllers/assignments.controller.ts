@@ -23,6 +23,8 @@ import {
   uploadToCloudinary,
 } from '../utils/upload.js';
 import type { AuthUser } from '../types/index.js';
+import { recordAudit, diffValues } from '../utils/audit.js';
+import { notifyAllStudents, formatManila } from '../utils/notify.js';
 
 function currentUser(req: Request): AuthUser {
   if (!req.user) throw httpError(401, 'Not authenticated');
@@ -121,7 +123,7 @@ export async function createAssignment(req: Request, res: Response): Promise<voi
   const input = createAssignmentSchema.parse(req.body);
   assertHttpUrl(input.attachment_url, 'Material link');
 
-  await assertCanManageModule(user, input.module_id);
+  const courseId = await assertCanManageModule(user, input.module_id);
 
   const [created] = await sql`
     INSERT INTO assignments (module_id, title, instructions, due_date, max_score, attachment_url)
@@ -129,6 +131,26 @@ export async function createAssignment(req: Request, res: Response): Promise<voi
             ${input.due_date}, ${input.max_score}, ${input.attachment_url || null})
     RETURNING id
   `;
+
+  await recordAudit(req, 'assignment.create', 'assignment', created.id as string, null, {
+    title: input.title,
+    due_date: new Date(input.due_date).toISOString(),
+    max_score: input.max_score,
+    course_id: courseId,
+  });
+
+  // Students need to know about new work, but only once: best effort, never blocks the teacher.
+  try {
+    const [course] = await sql`SELECT code FROM courses WHERE id = ${courseId}`;
+    await notifyAllStudents({
+      type: 'assignment',
+      title: 'New assignment',
+      message: `${input.title}${course?.code ? ` (${course.code})` : ''} is due ${formatManila(input.due_date)}`,
+      link: `/assignments/${created.id}`,
+    });
+  } catch (err) {
+    console.error('[assignments] could not notify students:', err);
+  }
 
   const [assignment] = await queryAssignments(user, { id: created.id as string });
   res.status(201).json({ assignment });
@@ -140,7 +162,7 @@ export async function updateAssignment(req: Request, res: Response): Promise<voi
   const input = updateAssignmentSchema.parse(req.body);
   assertHttpUrl(input.attachment_url, 'Material link');
 
-  await assertCanManageAssignment(user, id);
+  const before = await assertCanManageAssignment(user, id);
 
   // Never let the maximum drop below a grade that has already been given.
   if (input.max_score !== undefined) {
@@ -170,6 +192,16 @@ export async function updateAssignment(req: Request, res: Response): Promise<voi
     WHERE id = ${id}
   `;
 
+  const changes = diffValues(
+    { title: before.title, max_score: before.max_score, due_date: new Date(before.due_date).toISOString() },
+    {
+      title: input.title,
+      max_score: input.max_score,
+      due_date: input.due_date ? new Date(input.due_date).toISOString() : undefined,
+    },
+  );
+  if (changes) await recordAudit(req, 'assignment.update', 'assignment', id, changes.old, changes.new);
+
   const [assignment] = await queryAssignments(user, { id });
   res.json({ assignment });
 }
@@ -177,7 +209,7 @@ export async function updateAssignment(req: Request, res: Response): Promise<voi
 export async function deleteAssignment(req: Request, res: Response): Promise<void> {
   const id = parseUuid(req.params.id, 'assignment id');
   const user = currentUser(req);
-  await assertCanManageAssignment(user, id);
+  const before = await assertCanManageAssignment(user, id);
 
   // Collected now, deleted from Cloudinary only once the rows are really gone.
   const [material] = await sql`SELECT attachment_public_id FROM assignments WHERE id = ${id}`;
@@ -203,6 +235,7 @@ export async function deleteAssignment(req: Request, res: Response): Promise<voi
     'raw',
     'authenticated',
   );
+  await recordAudit(req, 'assignment.delete', 'assignment', id, { title: before.title, course_id: before.course_id }, null);
   res.json({ message: 'Assignment deleted' });
 }
 

@@ -10,6 +10,8 @@ import {
   parseUuid,
 } from '../utils/access.js';
 import { schoolYearTerm, toPercent } from '../utils/gradeTerm.js';
+import { recordAudit } from '../utils/audit.js';
+import { notifyUsers } from '../utils/notify.js';
 import {
   deleteFromCloudinary,
   signedDownloadUrl,
@@ -22,6 +24,34 @@ import type { AuthUser } from '../types/index.js';
 function currentUser(req: Request): AuthUser {
   if (!req.user) throw httpError(401, 'Not authenticated');
   return req.user;
+}
+
+/**
+ * Tells the course teacher that work is waiting for them: the one notification that asks someone
+ * to act. Best effort: a notification problem must never undo or block a hand-in.
+ */
+async function notifyTeacherOfHandIn(studentUserId: string, assignmentId: string, isUpdate: boolean): Promise<void> {
+  try {
+    const [row] = await sql`
+      SELECT a.title, te.user_id AS teacher_user_id,
+             COALESCE(NULLIF(TRIM(CONCAT(p.first_name, ' ', p.last_name)), ''), 'A student') AS student_name
+      FROM assignments a
+      JOIN modules m ON m.id = a.module_id
+      JOIN courses c ON c.id = m.course_id
+      JOIN teachers te ON te.id = c.teacher_id
+      LEFT JOIN profiles p ON p.user_id = ${studentUserId}
+      WHERE a.id = ${assignmentId}
+    `;
+    if (!row || row.teacher_user_id === studentUserId) return;
+    await notifyUsers([row.teacher_user_id as string], {
+      type: 'assignment',
+      title: isUpdate ? 'Submission updated' : 'New submission',
+      message: `${row.student_name} ${isUpdate ? 'updated their hand-in for' : 'submitted'} “${row.title}”`,
+      link: `/assignments/${assignmentId}`,
+    });
+  } catch (err) {
+    console.error('[submissions] could not notify the teacher:', err);
+  }
 }
 
 /**
@@ -198,6 +228,7 @@ export async function createSubmission(req: Request, res: Response): Promise<voi
   // The link replaced an uploaded file, so that file is no longer needed.
   if (previous?.file_public_id) await deleteFromCloudinary(previous.file_public_id, 'raw', 'authenticated');
 
+  await notifyTeacherOfHandIn(user.id, input.assignment_id, Boolean(previous));
   res.status(201).json({ submission });
 }
 
@@ -254,6 +285,7 @@ export async function createFileSubmission(req: Request, res: Response): Promise
     await deleteFromCloudinary(previous.file_public_id, 'raw', 'authenticated');
   }
 
+  await notifyTeacherOfHandIn(user.id, assignmentId, Boolean(previous));
   res.status(201).json({ submission });
 }
 
@@ -264,7 +296,8 @@ export async function gradeSubmission(req: Request, res: Response): Promise<void
   const input = gradeSubmissionSchema.parse(req.body);
 
   const [existing] = await sql`
-    SELECT s.id, s.assignment_id, st.user_id AS student_user_id
+    SELECT s.id, s.assignment_id, st.user_id AS student_user_id,
+           s.grade::float8 AS previous_grade, s.feedback AS previous_feedback
     FROM submissions s
     JOIN students st ON st.id = s.student_id
     WHERE s.id = ${id}
@@ -320,17 +353,22 @@ export async function gradeSubmission(req: Request, res: Response): Promise<void
     FROM sub
   `;
 
+  await recordAudit(
+    req,
+    'submission.grade',
+    'submission',
+    id,
+    existing.previous_grade === null ? null : { grade: existing.previous_grade, feedback: existing.previous_feedback },
+    { grade: input.score, max_score: assignment.max_score, feedback: submission?.feedback ?? null },
+  );
+
   // Let the student know. Best effort: a notification problem must never undo or block a grade.
-  try {
-    await sql`
-      INSERT INTO notifications (user_id, type, title, message, link)
-      VALUES (${existing.student_user_id}, 'grade', 'Assignment graded',
-              ${`${assignment.title}: ${input.score}/${assignment.max_score}`},
-              ${`/assignments/${assignment.id}`})
-    `;
-  } catch (err) {
-    console.error('[grading] could not create notification:', err);
-  }
+  await notifyUsers([existing.student_user_id as string], {
+    type: 'grade',
+    title: 'Assignment graded',
+    message: `${assignment.title}: ${input.score}/${assignment.max_score}`,
+    link: `/assignments/${assignment.id}`,
+  });
 
   res.json({ submission });
 }

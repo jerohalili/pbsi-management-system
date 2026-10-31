@@ -234,12 +234,54 @@ export const timetableSchema = timetableSlot
 // Editing moves or re-rooms an entry; to change its course, delete it and add a new one.
 export const timetableUpdateSchema = timetableSlot.refine(endsAfterItStarts, END_AFTER_START);
 
+export const NOTIFICATION_TYPES = [
+  'announcement',
+  'system',
+  'grade',
+  'assignment',
+  'quiz',
+  'attendance',
+  'discussion',
+] as const;
+
+// A link is an in-app path ("/grades") or a full web address; "" means no link.
+const notificationLink = z
+  .string()
+  .trim()
+  .max(500)
+  .refine(
+    (value) => value === '' || /^\/(?!\/)/.test(value) || /^https?:\/\//i.test(value),
+    'Link must start with / or http(s)://',
+  );
+
 export const notificationSchema = z.object({
   user_id: z.string().uuid('Invalid user ID'),
-  type: z.string().min(1),
-  title: z.string().min(1, 'Title is required'),
-  message: z.string().min(1, 'Message is required'),
-  link: z.string().url().optional().or(z.literal('')),
+  type: z.enum(NOTIFICATION_TYPES).default('announcement'),
+  title: z.string().trim().min(1, 'Title is required').max(200),
+  message: z.string().trim().min(1, 'Message is required').max(1000),
+  link: notificationLink.optional(),
+});
+
+// Query-string filters for GET /audit-logs. An empty value means "no filter".
+const blankToUndefined = (value: unknown) => (value === '' ? undefined : value);
+const isoDay = z.preprocess(
+  blankToUndefined,
+  z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Use the format YYYY-MM-DD')
+    .refine((v) => new Date(`${v}T00:00:00Z`).toISOString().slice(0, 10) === v, 'Not a real date')
+    .optional(),
+);
+
+export const auditLogQuerySchema = z.object({
+  actor_id: z.preprocess(blankToUndefined, z.string().uuid('Invalid actor id').optional()),
+  entity_id: z.preprocess(blankToUndefined, z.string().uuid('Invalid entity id').optional()),
+  action: z.preprocess(blankToUndefined, z.string().trim().max(100).optional()),
+  entity_type: z.preprocess(blankToUndefined, z.string().trim().max(100).optional()),
+  from: isoDay,
+  to: isoDay,
+  page: z.coerce.number().int().min(1).max(100000).default(1),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
 });
 
 export const quizSchema = z.object({
@@ -279,6 +321,7 @@ export type BulkAttendanceInput = z.infer<typeof bulkAttendanceSchema>;
 export type TimetableInput = z.infer<typeof timetableSchema>;
 export type TimetableUpdateInput = z.infer<typeof timetableUpdateSchema>;
 export type NotificationInput = z.infer<typeof notificationSchema>;
+export type AuditLogQuery = z.infer<typeof auditLogQuerySchema>;
 export type QuizInput = z.infer<typeof quizSchema>;
 export type QuizQuestionInput = z.infer<typeof quizQuestionSchema>;
 export type QuizAttemptInput = z.infer<typeof quizAttemptSchema>;

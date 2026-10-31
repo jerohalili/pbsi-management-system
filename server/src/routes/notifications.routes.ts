@@ -1,7 +1,10 @@
 import { Router } from 'express';
 import {
   listNotifications,
+  getUnreadCount,
   markNotificationRead,
+  markAllNotificationsRead,
+  deleteNotification,
   createNotification,
 } from '../controllers/notifications.controller.js';
 import { verifyToken } from '../middleware/verifyToken.js';
@@ -15,7 +18,11 @@ const router = Router();
 router.use(verifyToken);
 
 router.get('/', asyncHandler(listNotifications));
+// Fixed paths first, so "read-all" and "unread-count" are never read as an :id.
+router.get('/unread-count', asyncHandler(getUnreadCount));
+router.patch('/read-all', asyncHandler(markAllNotificationsRead));
 router.patch('/:id/read', asyncHandler(markNotificationRead));
+router.delete('/:id', asyncHandler(deleteNotification));
 router.post(
   '/',
   restrictTo('admin', 'teacher'),

@@ -8,7 +8,8 @@ import {
   optionalUuid,
   parseUuid,
 } from '../utils/access.js';
-import { recordAudit } from '../utils/audit.js';
+import { auditStatement } from '../utils/audit.js';
+import { notifyUsers } from '../utils/notify.js';
 import { overrideGradeSchema } from '../utils/validation.js';
 import { PASSING_GRADE } from '../utils/gradeTerm.js';
 import type { AuthUser } from '../types/index.js';
@@ -208,33 +209,37 @@ export async function overrideGrade(req: Request, res: Response): Promise<void> 
   const score = Math.round(input.score * 100) / 100;
   const feedbackProvided = input.feedback !== undefined;
 
-  const [updated] = await sql`
-    UPDATE grades
-    SET score = ${score}::numeric,
-        feedback = CASE WHEN ${feedbackProvided}::boolean THEN ${input.feedback || null} ELSE feedback END
-    WHERE id = ${id}
-    RETURNING id, score::float8 AS score, feedback
-  `;
+  const nextFeedback = feedbackProvided ? input.feedback || null : (grade.feedback as string | null);
 
-  await recordAudit(
-    req,
-    'grade.override',
-    'grade',
-    id,
-    { score: Number(grade.score), feedback: grade.feedback },
-    { score: updated.score, feedback: updated.feedback },
-  );
+  // A grade override must never go unrecorded, so the change and its audit row share one
+  // transaction: either both are stored or neither is.
+  const [updateResult] = await sql.transaction([
+    sql`
+      UPDATE grades
+      SET score = ${score}::numeric,
+          feedback = CASE WHEN ${feedbackProvided}::boolean THEN ${input.feedback || null} ELSE feedback END
+      WHERE id = ${id}
+      RETURNING id, score::float8 AS score, feedback
+    `,
+    auditStatement(
+      req,
+      'grade.override',
+      'grade',
+      id,
+      { score: Number(grade.score), feedback: grade.feedback },
+      { score, feedback: nextFeedback },
+    ),
+  ]);
+  const updated = updateResult?.[0];
+  if (!updated) throw httpError(404, 'Grade not found');
 
   // Let the student know. Best effort: a notification problem must never undo the change.
-  try {
-    await sql`
-      INSERT INTO notifications (user_id, type, title, message, link)
-      VALUES (${grade.student_user_id}, 'grade', 'Grade adjusted',
-              ${`${grade.assessment_title ?? 'Your grade'}: now ${score}%`}, '/grades')
-    `;
-  } catch (err) {
-    console.error('[grades] could not create notification:', err);
-  }
+  await notifyUsers([grade.student_user_id as string], {
+    type: 'grade',
+    title: 'Grade adjusted',
+    message: `${grade.assessment_title ?? 'Your grade'}: now ${score}%`,
+    link: '/grades',
+  });
 
   res.json({ grade: updated });
 }

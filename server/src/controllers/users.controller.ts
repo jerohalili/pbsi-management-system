@@ -5,6 +5,7 @@ import { sql } from '../config/db.js';
 import type { AppError } from '../middleware/errorHandler.js';
 import { hashPassword } from '../utils/password.js';
 import { deleteFromCloudinary, deleteManyFromCloudinary } from '../utils/upload.js';
+import { recordAudit } from '../utils/audit.js';
 import { avatarPublicId } from './avatar.controller.js';
 import {
   createUserSchema,
@@ -82,30 +83,15 @@ function rethrowDbError(err: unknown, foreignKeyMessage?: string): never {
   throw err;
 }
 
-function toJson(value: Record<string, unknown> | null): string | null {
-  return value ? JSON.stringify(value) : null;
-}
-
-/**
- * Best-effort audit trail. Never stores passwords. A failure here is logged but
- * does not undo the (already successful) account change.
- */
-async function writeAudit(
+/** Audit entry for an account change (the shared helper, with the entity type fixed to 'user'). */
+function writeAudit(
   req: Request,
   action: string,
   entityId: string,
   oldValues: Record<string, unknown> | null,
   newValues: Record<string, unknown> | null,
 ): Promise<void> {
-  try {
-    await sql`
-      INSERT INTO audit_logs (actor_id, action, entity_type, entity_id, old_values, new_values, ip_address)
-      VALUES (${req.user?.id ?? null}, ${action}, 'user', ${entityId},
-              ${toJson(oldValues)}, ${toJson(newValues)}, ${req.ip ?? null})
-    `;
-  } catch (err) {
-    console.error('[audit] failed to write audit log:', err);
-  }
+  return recordAudit(req, action, 'user', entityId, oldValues, newValues);
 }
 
 async function nextStudentNumber(year: number): Promise<string> {

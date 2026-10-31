@@ -10,6 +10,7 @@ import {
   rethrowDbError,
 } from '../utils/access.js';
 import { recordAudit } from '../utils/audit.js';
+import { notifyUsers } from '../utils/notify.js';
 import type { AuthUser } from '../types/index.js';
 import type { AttendanceInput, BulkAttendanceInput } from '../utils/validation.js';
 
@@ -105,6 +106,33 @@ export async function getRoster(req: Request, res: Response): Promise<void> {
   res.json({ students });
 }
 
+/**
+ * Tells students they were marked absent (the one attendance status worth an alert; "present" and
+ * "late" would only add noise). Best effort: never blocks saving attendance.
+ */
+async function notifyAbsences(courseId: string, date: string, studentIds: string[]): Promise<void> {
+  if (studentIds.length === 0) return;
+  try {
+    const rows = await sql`
+      SELECT st.user_id, c.code
+      FROM students st
+      CROSS JOIN courses c
+      WHERE st.id = ANY(${studentIds}::uuid[]) AND c.id = ${courseId}
+    `;
+    await notifyUsers(
+      rows.map((row) => row.user_id as string),
+      {
+        type: 'attendance',
+        title: 'Marked absent',
+        message: `You were marked absent in ${rows[0]?.code ?? 'a class'} on ${date}`,
+        link: '/attendance',
+      },
+    );
+  } catch (err) {
+    console.error('[attendance] could not notify absent students:', err);
+  }
+}
+
 export async function markAttendance(req: Request, res: Response): Promise<void> {
   const { student_id, course_id, date, status } = req.body as AttendanceInput;
   const user = req.user as AuthUser;
@@ -142,6 +170,9 @@ export async function markAttendance(req: Request, res: Response): Promise<void>
       { status: previous.status },
       { status },
     );
+  }
+  if (status === 'absent' && previous?.status !== 'absent') {
+    await notifyAbsences(course_id, date, [student_id]);
   }
   res.status(201).json({ record });
 }
@@ -206,6 +237,12 @@ export async function markAttendanceBulk(req: Request, res: Response): Promise<v
         recordAudit(req, 'attendance.override', 'attendance', id, { status: before.status }, { status: r.status }),
       ];
     }),
+  );
+
+  await notifyAbsences(
+    course_id,
+    date,
+    changed.filter((r) => r.status === 'absent').map((r) => r.student_id),
   );
 
   res.json({ saved: changed.length, unchanged: records.length - changed.length });
