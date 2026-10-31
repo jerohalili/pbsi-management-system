@@ -94,6 +94,7 @@ Other scripts: `npm run typecheck` (both packages), `npm run build` (both packag
 | `PORT`                                                                 | API port (default `4000`)                                                       |
 | `NODE_ENV`                                                             | `development` or `production` (production sets secure, `SameSite=None` cookies) |
 | `CORS_ORIGIN`                                                          | Allowed frontend origin, e.g. `http://localhost:5173`                           |
+| `TRUST_PROXY_HOPS`                                                     | Optional. Proxies in front of the server (default `1`, right for Render). Rate limits use the client address, so a wrong value makes everyone look like one network |
 | `DATABASE_URL`                                                         | Neon connection string (`?sslmode=require`)                                     |
 | `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`                              | Token signing secrets (use long random values)                                  |
 | `JWT_ACCESS_EXPIRES_IN`, `JWT_REFRESH_EXPIRES_IN`                      | Token lifetimes (default `15m` / `7d`)                                          |
@@ -161,7 +162,7 @@ All routes are under `/api` and need a valid session except `/auth/login`, `/aut
 - Passwords hashed with bcrypt; access (15 min) and refresh (7 day) JWTs are set as httpOnly cookies. The client also keeps the access token in `localStorage` and sends it as a Bearer header, refreshing it automatically on a 401.
 - Every request re-checks that the account is active and that the token was issued after `tokens_valid_after`.
 - Zod validation on request bodies; UUID parameters are validated so malformed ids return 400, not a database error.
-- `helmet`, CORS locked to `CORS_ORIGIN`, a 10 kB JSON body limit, and rate limiting (20 login attempts per 15 min, 100 per 15 min on other `/auth` routes, 300 per 15 min overall).
+- `helmet`, CORS locked to `CORS_ORIGIN`, a 10 kB JSON body limit, and rate limiting that is designed never to lock out people who did nothing wrong (`server/src/middleware/rateLimiters.ts`): only *failed* logins count, 10 per email per network and 300 per network per 15 min (a class sharing one Wi-Fi never blocks itself); signed-in requests are counted per person (1000 per 15 min), not per network; token refreshes per session; uploads per person. A blocked request gets a message saying how many minutes to wait. The app only signs someone out on a definite 401/403, never because the server was busy, waking up or rate limiting, and it retries a slow start for about 30 seconds before giving up.
 - Module uploads are restricted to admins and teachers, and the delete endpoint only touches module media. Profile pictures are the one upload open to everyone, for their own account only (JPG/PNG/WebP, checked by content, stored at `pbsi/avatars/<user id>`).
 - Audit log entries for sensitive admin and grading actions.
 

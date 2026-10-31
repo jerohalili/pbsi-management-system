@@ -1,5 +1,7 @@
 import { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import api, { AUTH_EXPIRED_EVENT } from '@/lib/api.ts';
+import axios from 'axios';
+import api, { API_BASE_URL, AUTH_EXPIRED_EVENT } from '@/lib/api.ts';
+import { resolveSession } from '@/lib/session.ts';
 import { useNavigate } from 'react-router-dom';
 
 export type UserRole = 'admin' | 'teacher' | 'student';
@@ -34,19 +36,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
 
-  const loadUser = useCallback(async () => {
-    try {
-      const { data } = await api.get<{ user: AuthUser }>('/auth/me');
-      setUser(data.user);
-    } catch {
+  // `initial` is true when the app is starting. Only then may a failed check show the sign-in page;
+  // a later refresh (for example after changing a picture) never signs anyone out because the
+  // server was briefly busy.
+  const loadUser = useCallback(async (initial: boolean) => {
+    const result = await resolveSession<AuthUser>({
+      getMe: async () => (await api.get<{ user: AuthUser }>('/auth/me')).data.user,
+      refresh: async () => {
+        const { data } = await axios.post<{ access_token: string }>(
+          `${API_BASE_URL}/auth/refresh`,
+          {},
+          { withCredentials: true },
+        );
+        localStorage.setItem('access_token', data.access_token);
+      },
+      statusOf: (error) => (axios.isAxiosError(error) ? error.response?.status : undefined),
+      sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+    });
+
+    if (result.kind === 'signed-in') {
+      setUser(result.user);
+    } else if (result.kind === 'signed-out') {
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('user');
       setUser(null);
-    } finally {
-      setIsLoading(false);
+    } else if (initial) {
+      setUser(null);
     }
+    setIsLoading(false);
   }, []);
 
+  const refreshUser = useCallback(() => loadUser(false), [loadUser]);
+
   useEffect(() => {
-    loadUser();
+    loadUser(true);
   }, [loadUser]);
 
   // The session ended while the app was open (e.g. the account was deactivated).
@@ -85,7 +108,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated: !!user, isLoading, login, logout, refreshUser: loadUser, hasRole }}>
+    <AuthContext.Provider value={{ user, isAuthenticated: !!user, isLoading, login, logout, refreshUser, hasRole }}>
       {children}
     </AuthContext.Provider>
   );

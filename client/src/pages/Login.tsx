@@ -17,7 +17,8 @@ function getLoginErrorMessage(err: any): string {
   if (status === 400) return 'Enter your email address and password.';
   if (status === 401) return 'Incorrect email or password.';
   if (status === 403) return 'This account is deactivated. Contact your administrator.';
-  if (status === 429) return 'Too many attempts. Wait a few minutes, then try again.';
+  // The server says exactly how long to wait; the generic text is only a fallback.
+  if (status === 429) return err.response.data?.error || 'Too many attempts. Wait a few minutes, then try again.';
   if (status >= 500) return 'Something went wrong on our side. Please try again.';
   return err.response.data?.error || 'Sign in failed. Please try again.';
 }

@@ -68,12 +68,18 @@ api.interceptors.response.use(
         const { data } = await axios.post(`${API_BASE_URL}/auth/refresh`, {}, { withCredentials: true });
         token = data.access_token;
         localStorage.setItem('access_token', token);
-      } catch {
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('user');
-        // The session is gone (signed out, deactivated or password reset): tell the app to
-        // return to the sign-in page instead of leaving a half-working screen.
-        window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
+      } catch (refreshError) {
+        // Only a clear "no" ends the session. A busy server, a rate limit (429) or a dropped
+        // connection must never sign anyone out: the original error is passed on and the next
+        // request simply tries again.
+        const status = axios.isAxiosError(refreshError) ? refreshError.response?.status : undefined;
+        if (status === 401 || status === 403) {
+          localStorage.removeItem('access_token');
+          localStorage.removeItem('user');
+          // The session is gone (signed out, deactivated or password reset): tell the app to
+          // return to the sign-in page instead of leaving a half-working screen.
+          window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
+        }
         onRefreshFailed(error);
         return Promise.reject(error);
       } finally {

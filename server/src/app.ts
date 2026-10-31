@@ -2,7 +2,12 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
-import { rateLimit } from 'express-rate-limit';
+import {
+  apiLimiter,
+  loginAccountLimiter,
+  loginNetworkLimiter,
+  refreshLimiter,
+} from './middleware/rateLimiters.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import authRoutes from './routes/auth.routes.js';
 import userRoutes from './routes/users.routes.js';
@@ -25,7 +30,9 @@ import teacherRoutes from './routes/teachers.routes.js';
 
 const app = express();
 
-app.set('trust proxy', 1);
+// Number of proxies between the internet and this server (1 on Render). Set TRUST_PROXY_HOPS if the
+// platform puts more than one in front; a wrong value makes everyone look like one network address.
+app.set('trust proxy', Number(process.env.TRUST_PROXY_HOPS ?? 1));
 
 // Security middleware
 app.use(helmet());
@@ -33,31 +40,17 @@ app.use(
   cors({
     origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
     credentials: true,
+    // Lets the browser read how long to wait after a 429.
+    exposedHeaders: ['Retry-After'],
   }),
 );
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
-// Rate limiting
-const strictAuthLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 20,
-  message: 'Too many authentication attempts, please try again later',
-});
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100,
-  message: 'Too many requests, please try again later',
-});
-const generalLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 300,
-});
-
-app.use('/api/auth/login', strictAuthLimiter);
-app.use('/api/auth/register', strictAuthLimiter);
-app.use('/api/auth', authLimiter);
-app.use(generalLimiter);
+// Rate limiting (see middleware/rateLimiters.ts for the rules and the numbers)
+app.use('/api/auth/login', loginNetworkLimiter, loginAccountLimiter);
+app.use('/api/auth/refresh', refreshLimiter);
+app.use('/api', apiLimiter);
 
 // Health check
 app.get('/api/health', (_req, res) => {
